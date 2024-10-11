@@ -1,7 +1,6 @@
 # The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
-# TODO(developer): Set your name
-# Copyright © 2023 <your name>
+# Copyright © 2023 Taoception
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
@@ -40,7 +39,7 @@ import bittensor as bt
 #   assert dummy_output == 2
 
 
-class Dummy(bt.Synapse):
+class CodingTask(bt.Synapse):
     """
     A simple dummy protocol representation which uses bt.Synapse as its base.
     This protocol helps in handling dummy request and response communication between
@@ -51,13 +50,15 @@ class Dummy(bt.Synapse):
     - dummy_output: An optional integer value which, when filled, represents the response from the miner.
     """
 
-    # Required request input, filled by sending dendrite caller.
-    dummy_input: int
+    # The issue description
+    issue_desc: str
+    # Link to S3 bucket containing code
+    code_link: str
+    # The solution to the challenge, filled by the miner
+    # TODO: make this be able to be None if no solution is found
+    code_solution: typing.Optional[str]
 
-    # Optional request output, filled by receiving axon.
-    dummy_output: typing.Optional[int] = None
-
-    def deserialize(self) -> int:
+    def deserialize(self) -> str:
         """
         Deserialize the dummy output. This method retrieves the response from
         the miner in the form of dummy_output, deserializes it and returns it
@@ -66,11 +67,7 @@ class Dummy(bt.Synapse):
         Returns:
         - int: The deserialized response, which in this case is the value of dummy_output.
 
-        Example:
-        Assuming a Dummy instance has a dummy_output value of 5:
-        >>> dummy_instance = Dummy(dummy_input=4)
-        >>> dummy_instance.dummy_output = 5
-        >>> dummy_instance.deserialize()
-        5
         """
-        return self.dummy_output
+        if self.code_solution is None:
+            return ""
+        return self.code_solution

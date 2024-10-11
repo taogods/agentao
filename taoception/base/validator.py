@@ -1,7 +1,6 @@
 # The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
-# TODO(developer): Set your name
-# Copyright © 2023 <your name>
+# Copyright © 2023 Taoception
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
@@ -28,13 +27,13 @@ import bittensor as bt
 from typing import List, Union
 from traceback import print_exception
 
-from template.base.neuron import BaseNeuron
-from template.base.utils.weight_utils import (
+from taoception.base.neuron import BaseNeuron
+from taoception.base.utils.weight_utils import (
     process_weights_for_netuid,
     convert_weights_and_uids_for_emit,
 )  # TODO: Replace when bittensor switches to numpy
-from template.mock import MockDendrite
-from template.utils.config import add_validator_args
+from taoception.mock import MockDendrite
+from taoception.utils.config import add_validator_args
 
 
 class BaseValidatorNeuron(BaseNeuron):
