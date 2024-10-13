@@ -1,3 +1,11 @@
+# Taoception
+
+How to run miner:
+- Run `scripts/setup_swe_agent.sh`
+- Set your Anthropic API keys in `SWEAgent/keys.cfg`
+  - Currently only Claude Sonnet 3.5 is supported (TODO(alex))
+
+------------------------------------
 <div align="center">
 
 # **Bittensor Subnet Template** <!-- omit in toc -->

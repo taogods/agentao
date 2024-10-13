@@ -19,12 +19,11 @@
 import time
 import typing
 import bittensor as bt
-
-# Bittensor Miner Template:
 import taoception
 
 # import base miner class which takes care of most of the boilerplate
 from taoception.base.miner import BaseMinerNeuron
+from taoception.miner_utils import UnsolvedIssue, generate_code_patch
 
 
 class Miner(BaseMinerNeuron):
@@ -57,8 +56,9 @@ class Miner(BaseMinerNeuron):
         The 'forward' function is a placeholder and should be overridden with logic that is appropriate for
         the miner's intended operation. This method demonstrates a basic transformation of input data.
         """
-        # TODO(developer): Replace with actual implementation logic.
-        synapse.dummy_output = synapse.dummy_input * 2
+        synapse.code_solution = generate_code_patch(
+            UnsolvedIssue(desc=synapse.issue_desc, code_link=synapse.code_link)
+        ).patch
         return synapse
 
     async def blacklist(
