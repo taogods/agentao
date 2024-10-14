@@ -69,7 +69,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/opentensor/bittensor-subnet-template",  # TODO(developer): Change this url to your module subnet github url.
-    author="bittensor.com",  # TODO(developer): Change this value to your module subnet author name.
+    author="Taoception",
     packages=find_packages(),
     include_package_data=True,
     author_email="",  # TODO(developer): Change this value to your module subnet author email.

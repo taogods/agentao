@@ -21,12 +21,15 @@ import time
 
 # Bittensor
 import bittensor as bt
+import torch
 
 # import base validator class which takes care of most of the boilerplate
 from taoception.base.validator import BaseValidatorNeuron
 # Bittensor Validator Template:
-from taoception.validator import forward
+from taoception.protocol import CodingTask
+from taoception.utils.uids import check_uid_availability
 
+NO_RESPONSE_MINIMUM = 0.005
 
 class Validator(BaseValidatorNeuron):
     """
@@ -55,7 +58,71 @@ class Validator(BaseValidatorNeuron):
         - Updating the scores
         """
         # TODO(developer): Rewrite this function based on your protocol definition.
-        return await forward(self)
+        # get all the miner UIDs
+
+        # Generate a coding problem for the miners to solve.
+        code_challenge = ... # TODO: Shakeel data server
+
+        miner_uids = []
+        for uid in range(len(self.metagraph.S)):
+            uid_is_available = check_uid_availability(
+                self.metagraph, uid, self.config.neuron.vpermit_tao_limit
+            )
+            if uid_is_available:
+                miner_uids.append(uid)
+        if len(miner_uids) == 0:
+            bt.logging.info("No miners available to query.")
+            return
+        
+        # The dendrite client queries the network.
+        axons = [self.metagraph.axons[uid] for uid in miner_uids]
+        responses = await self.dendrite(
+            # Send the query to selected miner axons in the network.
+            axons=axons,
+            # Construct a dummy query. This simply contains a single integer.
+            synapse=CodingTask(
+                issue_desc=code_challenge.issue_desc,
+                code_link=code_challenge.code_link,
+                ),
+            # All responses have the deserialize function called on them before returning.
+            # You are encouraged to define your own deserialization function.
+            deserialize=True,
+            timeout=600, # TODO: need a better timeout method
+        ) 
+
+        working_miner_uids = []
+        finished_responses = []
+
+        for response in responses:
+            if response.code_solution in [None, ""] or not response.axon or not response.axon.hotkey:
+                continue
+            
+            uid = [uid for uid, axon in zip(miner_uids, axons) if axon.hotkey == response.axon.hotkey][0]
+            working_miner_uids.append(uid)
+            finished_responses.append(response)
+
+        if len(working_miner_uids) == 0:
+            bt.logging.info("No miners responded")
+            # TODO: distributed weight evenly
+
+        # Score the responses from the different miners
+        rewards_list = ... # TODO: make a scoring function @alex
+
+        # reward the miners who succeeded
+        rewards = []
+        reward_uids = []
+        for r, r_uid in zip(rewards_list, working_miner_uids):
+            if r is not None:
+                rewards.append(r)
+                reward_uids.append(r_uid)
+        rewards = torch.FloatTensor(rewards).to(self.device)
+        # TODO: update scores here
+
+        # update scores for miners who failed
+        # give min reward to miners who didn't respond
+        bad_miner_uids = [uid for uid in miner_uids if uid not in working_miner_uids]
+        penalty_tensor = torch.FloatTensor([NO_RESPONSE_MINIMUM] * len(bad_miner_uids)).to(self.device)
+        # TODO: self.update_scores(penalty_tensor, bad_miner_uids)
 
 
 # The main function parses the configuration and runs the validator.
