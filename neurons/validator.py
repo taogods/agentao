@@ -18,11 +18,14 @@
 
 
 import time
+from typing import Final
 
 # Bittensor
 import bittensor as bt
+import requests
 import torch
 
+from neurons.classes import SWEBenchEntry
 # import base validator class which takes care of most of the boilerplate
 from taoception.base.validator import BaseValidatorNeuron
 # Bittensor Validator Template:
@@ -30,6 +33,7 @@ from taoception.protocol import CodingTask
 from taoception.utils.uids import check_uid_availability
 
 NO_RESPONSE_MINIMUM = 0.005
+ISSUES_DATA_ENDPOINT: Final[str] = "TODO"
 
 class Validator(BaseValidatorNeuron):
     """
@@ -61,7 +65,13 @@ class Validator(BaseValidatorNeuron):
         # get all the miner UIDs
 
         # Generate a coding problem for the miners to solve.
-        code_challenge = ... # TODO: Shakeel data server
+        try:
+            response = requests.get(ISSUES_DATA_ENDPOINT)
+        except requests.exceptions.HTTPError as error:
+            print(f"Error fetching issue from data endpoint: {error}. Skipping forward pass")
+            return
+
+        code_challenge: SWEBenchEntry = SWEBenchEntry.model_validate(response.json())
 
         miner_uids = []
         for uid in range(len(self.metagraph.S)):
@@ -81,8 +91,8 @@ class Validator(BaseValidatorNeuron):
             axons=axons,
             # Construct a dummy query. This simply contains a single integer.
             synapse=CodingTask(
-                issue_desc=code_challenge.issue_desc,
-                code_link=code_challenge.code_link,
+                issue_desc=code_challenge.problem_statement,
+                code_link=code_challenge.repo,
                 ),
             # All responses have the deserialize function called on them before returning.
             # You are encouraged to define your own deserialization function.
