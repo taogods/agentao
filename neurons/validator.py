@@ -17,12 +17,23 @@
 # DEALINGS IN THE SOFTWARE.
 
 
+import json
 import time
 from typing import Final
+import typing
+import docker
+import swebench
+import random
+import string
 
 # Bittensor
 import bittensor as bt
 import requests
+import swebench.harness
+import swebench.harness.docker_build
+import swebench.harness.docker_utils
+import swebench.harness.run_evaluation
+import swebench.harness.test_spec
 import torch
 
 from neurons.classes import SWEBenchEntry
@@ -32,8 +43,14 @@ from taoception.base.validator import BaseValidatorNeuron
 from taoception.protocol import CodingTask
 from taoception.utils.uids import check_uid_availability
 
-NO_RESPONSE_MINIMUM = 0.005
+NO_RESPONSE_MINIMUM: float = 0.005
 ISSUES_DATA_ENDPOINT: Final[str] = "TODO"
+DOCKER_CACHE_LEVEL: str = "instance"
+
+def generate_random_string(length: int) -> str:
+    characters = string.ascii_letters + string.digits
+    random_string = ''.join(random.choices(characters, k=length))
+    return random_string
 
 class Validator(BaseValidatorNeuron):
     """
@@ -51,6 +68,64 @@ class Validator(BaseValidatorNeuron):
         self.load_state()
 
         # TODO(developer): Anything specific to your use case you can do here
+
+    async def validate(
+            self,
+            challenge: SWEBenchEntry,
+            responses: typing.List[str],
+    ) -> torch.FloatTensor:
+        """
+        Validate the responses from the miners. This function should score the responses and return a list of rewards for each miner.
+
+        Args:
+            challenge (SWEBenchEntry): The challenge that was sent to the miners.
+            responses (List[str]): The responses from the miners.
+
+        Returns:
+            torch.FloatTensor: A list of rewards for each miner.
+        """
+        client = docker.from_env()
+        existing_images = swebench.list_images(client)
+        instance = challenge.to_swebench_instance()
+        swebench.harness.docker_build.build_env_images(client, [instance])
+
+        # run tests
+        test_specs = swebench.harness.test_spec.make_test_spec(instance)
+        tests_passed = []
+
+        for prediction in responses:
+            prediction = {
+                "instance_id": challenge.instance_id,
+                "model_patch": prediction,
+                "model_name_or_path": "taoception"
+            }
+            run_id = generate_random_string(5)
+            swebench.harness.run_evaluation.run_instance(
+                test_specs,
+                prediction,
+                True,
+                False,
+                client,
+                "WF"
+            )
+
+            test_report = swebench.harness.run_evaluation.make_run_report(
+                {prediction["instance_id"]: prediction},
+                [instance],
+                client,
+                run_id
+            )
+            with test_report.open('r') as f:
+                test_report = json.load(f)
+
+            if test_report['error_ids']:
+                tests_passed.append(0)
+            else: tests_passed.append(1)
+
+        swebench.harness.docker_utils.clean_images(client, existing_images, DOCKER_CACHE_LEVEL, False)
+
+        # TODO(developer): Implement your scoring function here
+        return torch.FloatTensor(tests_passed)
 
     async def forward(self):
         """
@@ -109,14 +184,14 @@ class Validator(BaseValidatorNeuron):
             
             uid = [uid for uid, axon in zip(miner_uids, axons) if axon.hotkey == response.axon.hotkey][0]
             working_miner_uids.append(uid)
-            finished_responses.append(response)
+            finished_responses.append(response.code_solution)
 
         if len(working_miner_uids) == 0:
             bt.logging.info("No miners responded")
             # TODO: distributed weight evenly
 
         # Score the responses from the different miners
-        rewards_list = ... # TODO: make a scoring function @alex
+        rewards_list = await self.validate(code_challenge, finished_responses)
 
         # reward the miners who succeeded
         rewards = []
