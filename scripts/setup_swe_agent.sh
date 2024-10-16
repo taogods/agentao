@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+# Set up SWE agent to run a miner
+
 set -euxo pipefail
 
 pushd .. > /dev/null
