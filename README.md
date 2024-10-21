@@ -1,221 +1,79 @@
-# Taoception
-
-How to run miner:
-- Run `scripts/setup_swe_agent.sh`
-- Set your Anthropic API keys in `SWEAgent/keys.cfg`
-  - Currently only Claude Sonnet 3.5 is supported (TODO(alex))
-
-------------------------------------
 <div align="center">
 
-# **Bittensor Subnet Template** <!-- omit in toc -->
-[![Discord Chat](https://img.shields.io/discord/308323056592486420.svg)](https://discord.gg/bittensor)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
+# Taoception | autonomous developer marketplace
 
----
-
-## The Incentivized Internet <!-- omit in toc -->
-
-[Discord](https://discord.gg/bittensor) • [Network](https://taostats.io/) • [Research](https://bittensor.com/whitepaper)
 </div>
 
----
-- [Quickstarter template](#quickstarter-template)
+# Table of contents
 - [Introduction](#introduction)
-  - [Example](#example)
-- [Installation](#installation)
-  - [Before you proceed](#before-you-proceed)
-  - [Install](#install)
-- [Writing your own incentive mechanism](#writing-your-own-incentive-mechanism)
-- [Writing your own subnet API](#writing-your-own-subnet-api)
-- [Subnet Links](#subnet-links)
+- [Miner and Validator Functionality](#miner-and-validator-functionality)
+- [Roadmap](#roadmap)
+- [Running Miners and Validators](#running-miners-and-validators)
 - [License](#license)
 
----
-## Quickstarter template
-
-This template contains all the required installation instructions, scripts, and files and functions for:
-- Building Bittensor subnets.
-- Creating custom incentive mechanisms and running these mechanisms on the subnets. 
-
-In order to simplify the building of subnets, this template abstracts away the complexity of the underlying blockchain and other boilerplate code. While the default behavior of the template is sufficient for a simple subnet, you should customize the template in order to meet your specific requirements.
----
-
 ## Introduction
+There will come a day when large portions of grunt work in software engineering are fully automated, where tedious data definition, schema writing, monkey patching is done near instantly by autonomous agents. And when that day arrives, people will remember Bittensor and Taoception as it's driver.
 
-**IMPORTANT**: If you are new to Bittensor subnets, read this section before proceeding to [Installation](#installation) section. 
+### The future of autonomous agents
+Imagine if you open an issue on scikit-learn, and within 5 minutes a PR is opened by **Taoception Bot**. As you make comments and give feedback, it engages you, working tirelessly until the solution is merged, resulting in YOU getting paid TAO.
 
-The Bittensor blockchain hosts multiple self-contained incentive mechanisms called **subnets**. Subnets are playing fields in which:
-- Subnet miners who produce value, and
-- Subnet validators who produce consensus
+Commodifying and incentivizing innovation - this is what Taoception brings.
 
-determine together the proper distribution of TAO for the purpose of incentivizing the creation of value, i.e., generating digital commodities, such as intelligence or data. 
+### The Vision
+At Taoception we seek to create a self-fulfilling autonomous SWE agent market. Our Bittensor-powered agents will work on code issues posted in a decentralized market, scourge the net for open issues to solve, and continuously contribute to the meta-allocation engine behind this economy - Cerebro. 
 
-Each subnet consists of:
-- Subnet miners and subnet validators.
-- A protocol using which the subnet miners and subnet validators interact with one another. This protocol is part of the incentive mechanism.
-- The Bittensor API using which the subnet miners and subnet validators interact with Bittensor's onchain consensus engine [Yuma Consensus](https://bittensor.com/documentation/validating/yuma-consensus). The Yuma Consensus is designed to drive these actors: subnet validators and subnet miners, into agreement on who is creating value and what that value is worth. 
+As the network grows, Cerebro gains the intelligence to lead the pipeline from problem statement to issue resolution in the most efficient manner, as its miners also gain the intelligence to solve more advanced problems.
 
-This starter template is split into three primary files. To write your own incentive mechanism, you should edit these files. These files are:
-1. `template/protocol.py`: Contains the definition of the protocol used by subnet miners and subnet validators.
-2. `neurons/miner.py`: Script that defines the subnet miner's behavior, i.e., how the subnet miner responds to requests from subnet validators.
-3. `neurons/validator.py`: This script defines the subnet validator's behavior, i.e., how the subnet validator requests information from the subnet miners and determines the scores.
+As Taoception contributes to thousands of codebases in the open and closed source space, we will see a proliferation of Bittensor users contributing to the open issue marketplace, which will have direct positive impact on the utility of the network.
 
-### Example
+## Miner and Validator Functionality
 
-The Bittensor Subnet 1 for Text Prompting is built using this template. See [prompting](https://github.com/macrocosm-os/prompting) for how to configure the files and how to add monitoring and telemetry and support multiple miner types. Also see this Subnet 1 in action on [Taostats](https://taostats.io/subnets/netuid-1/) explorer.
+### Miner
+- Receive a problem statement, context (comments, issue history), and a difficulty level for the problem as rated by Cerebro.
+- Use deep learning agents to create solution patches to problem statement.
+- Get rewarded TAO for providing correct solutions.
 
----
+### Validator 
+- Continuously generates coding tasks for miners sampled across top PyPi packages.
+- Evaluates solutions from miners using an LLM and simulated tests.
+- Scores the solution based on
+    - Correctness for issues with tests
+    - amount of time it took for solution
+    - Conciseness and similarity relative to ground truth solution.
+- Contributes results to dataset
 
-## Installation
+## Roadmap
 
-### Before you proceed
-Before you proceed with the installation of the subnet, note the following: 
+**Epoch 1: Core**
+Goal: foundational development of dataset for the training of Cerebro
+ 
+- [ ] Subnet launch with LLM evaluation on closed (issue, PR) pairs in order to build dataset for training of Cerebro
+    - [ ] Tasks are sampled from top PyPi packages
+- [ ] Website and leaderboard launch
 
-- Use these instructions to run your subnet locally for your development and testing, or on Bittensor testnet or on Bittensor mainnet. 
-- **IMPORTANT**: We **strongly recommend** that you first run your subnet locally and complete your development and testing before running the subnet on Bittensor testnet. Furthermore, make sure that you next run your subnet on Bittensor testnet before running it on the Bittensor mainnet.
-- You can run your subnet either as a subnet owner, or as a subnet validator or as a subnet miner. 
-- **IMPORTANT:** Make sure you are aware of the minimum compute requirements for your subnet. See the [Minimum compute YAML configuration](./min_compute.yml).
-- Note that installation instructions differ based on your situation: For example, installing for local development and testing will require a few additional steps compared to installing for testnet. Similarly, installation instructions differ for a subnet owner vs a validator or a miner. 
+**Epoch 2: Ground**
+Goal: Increase difficulty of issues, build baseline Cerebro.
 
-### Install
+- [ ] Integrate with Omega (SN24) for issue generation on closed PRs
+- [ ] Introduce test-simulations using SWEBench into incentive
+- [ ] Begin development of Cerebro
+- [ ] Open source dataset on HuggingFace
 
-- **Running locally**: Follow the step-by-step instructions described in this section: [Running Subnet Locally](./docs/running_on_staging.md).
-- **Running on Bittensor testnet**: Follow the step-by-step instructions described in this section: [Running on the Test Network](./docs/running_on_testnet.md).
-- **Running on Bittensor mainnet**: Follow the step-by-step instructions described in this section: [Running on the Main Network](./docs/running_on_mainnet.md).
+**Epoch 3: Sky**
+Goal: Develop pipeline for agents solving open issues on Github.
 
----
+- [ ] Create competition market and incentive model for open issues
+- [ ] Conduct controlled tests of open issue flow
+- [ ] Full integration of Cerebro into reward model
 
-## Writing your own incentive mechanism
+**Epoch 4: heaven**
+Goal: Integrated marketplace for the development of Cerebro-accepted issues
 
-As described in [Quickstarter template](#quickstarter-template) section above, when you are ready to write your own incentive mechanism, update this template repository by editing the following files. The code in these files contains detailed documentation on how to update the template. Read the documentation in each of the files to understand how to update the template. There are multiple **TODO**s in each of the files identifying sections you should update. These files are:
-- `template/protocol.py`: Contains the definition of the wire-protocol used by miners and validators.
-- `neurons/miner.py`: Script that defines the miner's behavior, i.e., how the miner responds to requests from validators.
-- `neurons/validator.py`: This script defines the validator's behavior, i.e., how the validator requests information from the miners and determines the scores.
-- `template/forward.py`: Contains the definition of the validator's forward pass.
-- `template/reward.py`: Contains the definition of how validators reward miner responses.
+- [ ] Create app for issue registration, open to public
+- [ ] Full release of open issue flow
 
-In addition to the above files, you should also update the following files:
-- `README.md`: This file contains the documentation for your project. Update this file to reflect your project's documentation.
-- `CONTRIBUTING.md`: This file contains the instructions for contributing to your project. Update this file to reflect your project's contribution guidelines.
-- `template/__init__.py`: This file contains the version of your project.
-- `setup.py`: This file contains the metadata about your project. Update this file to reflect your project's metadata.
-- `docs/`: This directory contains the documentation for your project. Update this directory to reflect your project's documentation.
-
-__Note__
-The `template` directory should also be renamed to your project name.
----
-
-# Writing your own subnet API
-To leverage the abstract `SubnetsAPI` in Bittensor, you can implement a standardized interface. This interface is used to interact with the Bittensor network and can be used by a client to interact with the subnet through its exposed axons.
-
-What does Bittensor communication entail? Typically two processes, (1) preparing data for transit (creating and filling `synapse`s) and (2), processing the responses received from the `axon`(s).
-
-This protocol uses a handler registry system to associate bespoke interfaces for subnets by implementing two simple abstract functions:
-- `prepare_synapse`
-- `process_responses`
-
-These can be implemented as extensions of the generic `SubnetsAPI` interface.  E.g.:
-
-
-This is abstract, generic, and takes(`*args`, `**kwargs`) for flexibility. See the extremely simple base class:
-```python
-class SubnetsAPI(ABC):
-    def __init__(self, wallet: "bt.wallet"):
-        self.wallet = wallet
-        self.dendrite = bt.dendrite(wallet=wallet)
-
-    async def __call__(self, *args, **kwargs):
-        return await self.query_api(*args, **kwargs)
-
-    @abstractmethod
-    def prepare_synapse(self, *args, **kwargs) -> Any:
-        """
-        Prepare the synapse-specific payload.
-        """
-        ...
-
-    @abstractmethod
-    def process_responses(self, responses: List[Union["bt.Synapse", Any]]) -> Any:
-        """
-        Process the responses from the network.
-        """
-        ...
-
-```
-
-
-Here is a toy example:
-
-```python
-from bittensor.subnets import SubnetsAPI
-from MySubnet import MySynapse
-
-class MySynapseAPI(SubnetsAPI):
-    def __init__(self, wallet: "bt.wallet"):
-        super().__init__(wallet)
-        self.netuid = 99
-
-    def prepare_synapse(self, prompt: str) -> MySynapse:
-        # Do any preparatory work to fill the synapse
-        data = do_prompt_injection(prompt)
-
-        # Fill the synapse for transit
-        synapse = StoreUser(
-            messages=[data],
-        )
-        # Send it along
-        return synapse
-
-    def process_responses(self, responses: List[Union["bt.Synapse", Any]]) -> str:
-        # Look through the responses for information required by your application
-        for response in responses:
-            if response.dendrite.status_code != 200:
-                continue
-            # potentially apply post processing
-            result_data = postprocess_data_from_response(response)
-        # return data to the client
-        return result_data
-```
-
-You can use a subnet API to the registry by doing the following:
-1. Download and install the specific repo you want
-1. Import the appropriate API handler from bespoke subnets
-1. Make the query given the subnet specific API
-
-
-
-# Subnet Links
-In order to see real-world examples of subnets in-action, see the `subnet_links.py` document or access them from inside the `template` package by:
-```python
-import template
-template.SUBNET_LINKS
-[{'name': 'sn0', 'url': ''},
- {'name': 'sn1', 'url': 'https://github.com/opentensor/prompting/'},
- {'name': 'sn2', 'url': 'https://github.com/bittranslateio/bittranslate/'},
- {'name': 'sn3', 'url': 'https://github.com/gitphantomman/scraping_subnet/'},
- {'name': 'sn4', 'url': 'https://github.com/manifold-inc/targon/'},
-...
-]
-```
+## Running miners and validators
+TBD
 
 ## License
-This repository is licensed under the MIT License.
-```text
-# The MIT License (MIT)
-# Copyright © 2024 Opentensor Foundation
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-# documentation files (the “Software”), to deal in the Software without restriction, including without limitation
-# the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all copies or substantial portions of
-# the Software.
-
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-# THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-# DEALINGS IN THE SOFTWARE.
-```
+Taoception is released under the [MIT License](./LICENSE).
