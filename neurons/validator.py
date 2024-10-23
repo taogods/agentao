@@ -18,17 +18,17 @@
 
 
 import json
-import time
-from typing import Final
-import typing
-import docker
-import swebench
 import random
 import string
+import time
+import typing
+from typing import Final
 
 # Bittensor
 import bittensor as bt
+import docker
 import requests
+import swebench
 import swebench.harness
 import swebench.harness.docker_build
 import swebench.harness.docker_utils
@@ -36,7 +36,7 @@ import swebench.harness.run_evaluation
 import swebench.harness.test_spec
 import torch
 
-from neurons.classes import SWEBenchEntry
+from neurons.classes import LabelledIssueTask
 # import base validator class which takes care of most of the boilerplate
 from taoception.base.validator import BaseValidatorNeuron
 # Bittensor Validator Template:
@@ -70,15 +70,15 @@ class Validator(BaseValidatorNeuron):
         # TODO(developer): Anything specific to your use case you can do here
 
     async def validate(
-            self,
-            challenge: SWEBenchEntry,
-            responses: typing.List[str],
+        self,
+        challenge: LabelledIssueTask,
+        responses: typing.List[str],
     ) -> torch.FloatTensor:
         """
         Validate the responses from the miners. This function should score the responses and return a list of rewards for each miner.
 
         Args:
-            challenge (SWEBenchEntry): The challenge that was sent to the miners.
+            challenge (LabelledIssueTask): The challenge that was sent to the miners.
             responses (List[str]): The responses from the miners.
 
         Returns:
@@ -136,7 +136,6 @@ class Validator(BaseValidatorNeuron):
         - Rewarding the miners
         - Updating the scores
         """
-        # TODO(developer): Rewrite this function based on your protocol definition.
         # get all the miner UIDs
 
         # Generate a coding problem for the miners to solve.
@@ -146,7 +145,7 @@ class Validator(BaseValidatorNeuron):
             print(f"Error fetching issue from data endpoint: {error}. Skipping forward pass")
             return
 
-        code_challenge: SWEBenchEntry = SWEBenchEntry.model_validate(response.json())
+        code_challenge: LabelledIssueTask = LabelledIssueTask.model_validate(response.json())
 
         miner_uids = []
         for uid in range(len(self.metagraph.S)):
@@ -168,7 +167,7 @@ class Validator(BaseValidatorNeuron):
             synapse=CodingTask(
                 issue_desc=code_challenge.problem_statement,
                 code_link=code_challenge.repo,
-                ),
+            ),
             # All responses have the deserialize function called on them before returning.
             # You are encouraged to define your own deserialization function.
             deserialize=True,

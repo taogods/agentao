@@ -50,13 +50,16 @@ class CodingTask(bt.Synapse):
     - dummy_output: An optional integer value which, when filled, represents the response from the miner.
     """
 
+    ########################## Payload definition ##############################
     # The issue description
-    issue_desc: str
+    problem_statement: str
+
     # Link to S3 bucket containing code
-    code_link: str
+    s3_code_link: str
+
     # The solution to the challenge, filled by the miner
-    # TODO: make this be able to be None if no solution is found
-    code_solution: typing.Optional[str]
+    patch: typing.Optional[str]
+    ###########################################################################
 
     def deserialize(self) -> str:
         """

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from getpass import getuser
 from pathlib import Path
 
+import boto3
 from sweagent.agent.agents import Agent
 from sweagent.agent.models import ModelArguments
 from sweagent.environment.swe_env import EnvironmentArguments, SWEEnv
@@ -12,7 +13,7 @@ from SWEAgent.run import ActionsArguments, ScriptArguments, AgentArguments
 @dataclass
 class UnsolvedIssue:
     desc: str
-    code_link: str
+    local_code_path: Path
 
 @dataclass
 class IssueSolution:
@@ -23,7 +24,7 @@ def create_script_arguments(unsolved_issue: UnsolvedIssue) -> ScriptArguments:
         environment=EnvironmentArguments(
             image_name="sweagent/swe-agent:latest",
             data_path=f"text://{unsolved_issue.desc}",
-            repo_path="https://github.com/SWE-agent/test-repo",
+            repo_path=unsolved_issue.local_code_path,
             verbose=True,
         ),
         skip_existing=False,
@@ -41,6 +42,17 @@ def create_script_arguments(unsolved_issue: UnsolvedIssue) -> ScriptArguments:
         ),
         print_config=True,
     )
+
+def download_repo_locally(s3_code_link: str, local_dir: str = None) -> Path:
+    s3 = boto3.resource('s3')
+    bucket_name, key = s3_code_link.replace("s3://", "").split('/', 1)
+
+    # Set the local path where the file will be saved
+    local_path_root = local_dir or Path.cwd()
+    local_file_path = local_path_root / key.split('/')[-1]
+
+    s3.Bucket(bucket_name).download_file(key, str(local_file_path))
+    return local_file_path
 
 def generate_code_patch(unsolved_issue: UnsolvedIssue) -> IssueSolution:
     script_arguments = create_script_arguments(unsolved_issue)

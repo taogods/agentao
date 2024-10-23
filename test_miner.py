@@ -19,7 +19,7 @@ SyntaxError: invalid syntax
 
 test_unsolved_issue = UnsolvedIssue(
     desc=test_issue_desc,
-    code_link="https://github.com/SWE-agent/test-repo",
+    local_code_path="https://github.com/SWE-agent/test-repo",
 )
 
 patch = generate_code_patch(test_unsolved_issue).patch
