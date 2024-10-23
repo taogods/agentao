@@ -92,7 +92,7 @@ setup_environment() {
 }
 
 # Call setup_environment every time
-setup_environment 
+#setup_environment
 
 ## Setup localnet
 # assumes we are in the bittensor-subnet-template/ directory

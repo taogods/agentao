@@ -3,11 +3,11 @@ from getpass import getuser
 from pathlib import Path
 
 import boto3
-from sweagent.agent.agents import Agent
+from sweagent.agent.agents import Agent, AgentArguments
 from sweagent.agent.models import ModelArguments
 from sweagent.environment.swe_env import EnvironmentArguments, SWEEnv
 
-from SWEAgent.run import ActionsArguments, ScriptArguments, AgentArguments
+from .swe_agent_arguments import ScriptArguments, ActionsArguments
 
 
 @dataclass
