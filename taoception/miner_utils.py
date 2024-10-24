@@ -24,7 +24,7 @@ def create_script_arguments(unsolved_issue: UnsolvedIssue) -> ScriptArguments:
         environment=EnvironmentArguments(
             image_name="sweagent/swe-agent:latest",
             data_path=f"text://{unsolved_issue.desc}",
-            repo_path=unsolved_issue.local_code_path,
+            repo_path=str(unsolved_issue.local_code_path),
             verbose=True,
         ),
         skip_existing=False,
