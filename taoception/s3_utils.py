@@ -1,7 +1,11 @@
+import os
+import tempfile
+import zipfile
 from pathlib import Path
+
+import boto3
 from botocore import UNSIGNED
 from botocore.client import Config
-import boto3
 
 
 def download_repo_locally(s3_code_link: str, local_dir: str = None) -> Path:
@@ -9,12 +13,36 @@ def download_repo_locally(s3_code_link: str, local_dir: str = None) -> Path:
     bucket_name, key = s3_code_link.replace("s3://", "").split('/', 1)
 
     # Set the local path where the file will be saved
-    local_path_root = local_dir or Path.cwd()
+    local_path_root = Path(local_dir or Path.cwd())
     local_file_path = local_path_root / key.split('/')[-1]
 
+    # Download the file
     s3.Bucket(bucket_name).download_file(key, str(local_file_path))
-    return local_file_path
 
+    # Check if it's a zip file
+    if local_file_path.suffix == '.zip':
+        # Create a temporary directory for extraction
+        with tempfile.TemporaryDirectory() as temp_extract_dir:
+            temp_extract_path = Path(temp_extract_dir)
+
+            # Extract the zip file into the temporary directory
+            with zipfile.ZipFile(local_file_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_extract_path)
+
+            # Find the one directory inside the extracted folder
+            extracted_dir = next(temp_extract_path.iterdir())
+
+            # Create the new folder name (same as zip file name without the extension)
+            renamed_dir = local_path_root / local_file_path.stem
+
+            # Rename the extracted directory if the target doesn't yet exist
+            if not renamed_dir.exists():
+                extracted_dir.rename(renamed_dir)
+
+        # Delete the zip file after extraction
+        os.remove(local_file_path)
+
+        return renamed_dir  # Return the renamed directory path
 
 def delete_s3_folder(s3_folder_link: str) -> None:
     # Remove the "s3://" part and split the bucket and key
