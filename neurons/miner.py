@@ -25,7 +25,6 @@ import taoception
 # import base miner class which takes care of most of the boilerplate
 from taoception.base.miner import BaseMinerNeuron
 from taoception.miner_utils import UnsolvedIssue, generate_code_patch
-from taoception.miner_utils import download_repo_locally
 from taoception.s3_utils import download_repo_locally
 
 

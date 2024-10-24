@@ -43,17 +43,6 @@ def create_script_arguments(unsolved_issue: UnsolvedIssue) -> ScriptArguments:
         print_config=True,
     )
 
-def download_repo_locally(s3_code_link: str, local_dir: str = None) -> Path:
-    s3 = boto3.resource('s3')
-    bucket_name, key = s3_code_link.replace("s3://", "").split('/', 1)
-
-    # Set the local path where the file will be saved
-    local_path_root = local_dir or Path.cwd()
-    local_file_path = local_path_root / key.split('/')[-1]
-
-    s3.Bucket(bucket_name).download_file(key, str(local_file_path))
-    return local_file_path
-
 def generate_code_patch(unsolved_issue: UnsolvedIssue) -> IssueSolution:
     script_arguments = create_script_arguments(unsolved_issue)
 
@@ -61,11 +50,14 @@ def generate_code_patch(unsolved_issue: UnsolvedIssue) -> IssueSolution:
     observation, info = env.reset(0)
 
     agent = Agent("primary", script_arguments.agent)
+    trajectories_dir = Path.cwd() / "trajectories"
+    trajectories_dir.mkdir(exist_ok=True)
+
     info, trajectory = agent.run(
         setup_args={"issue": getattr(env, "query", None), "files": [], "test_files": [], "tests": []},
         env=env,
         observation=observation,
-        traj_dir=Path("trajectories") / Path(getuser()) / script_arguments.run_name,
+        traj_dir=trajectories_dir,
         return_type="info_trajectory",
     )
     return IssueSolution(patch=info["submission"])
