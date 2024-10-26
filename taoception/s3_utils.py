@@ -1,4 +1,5 @@
 import os
+import subprocess
 import tempfile
 import zipfile
 from pathlib import Path
@@ -8,7 +9,7 @@ from botocore import UNSIGNED
 from botocore.client import Config
 
 
-def download_repo_locally(s3_code_link: str, local_dir: str = None) -> Path:
+def download_repo_locally(s3_code_link: str, local_dir: Path | str = None) -> Path:
     s3 = boto3.resource('s3', config=Config(signature_version=UNSIGNED))
     bucket_name, key = s3_code_link.replace("s3://", "").split('/', 1)
 
@@ -32,17 +33,41 @@ def download_repo_locally(s3_code_link: str, local_dir: str = None) -> Path:
             # Find the one directory inside the extracted folder
             extracted_dir = next(temp_extract_path.iterdir())
 
+
             # Create the new folder name (same as zip file name without the extension)
             renamed_dir = local_path_root / local_file_path.stem
 
             # Rename the extracted directory if the target doesn't yet exist
             if not renamed_dir.exists():
                 extracted_dir.rename(renamed_dir)
+            _apply_git_commands(renamed_dir)
 
         # Delete the zip file after extraction
         os.remove(local_file_path)
 
         return renamed_dir  # Return the renamed directory path
+
+
+# SWE-Agent requires that a git repo be initialized
+def _apply_git_commands(target_dir: Path) -> None:
+    original_dir = os.getcwd()
+
+    commands_to_run = [
+        "git init",
+        "git add .",
+        "git commit -m 'initial' --allow-empty",
+    ]
+
+    try:
+        os.chdir(target_dir)
+        for command in commands_to_run:
+            subprocess.run(command.split(), shell=False)
+        print(f"Initialized and committed in a Git repository at {target_dir}")
+    finally:
+        # Always return to the original directory
+        os.chdir(original_dir)
+        print(f"Returned to the original directory: {original_dir}")
+
 
 def delete_s3_folder(s3_folder_link: str) -> None:
     # Remove the "s3://" part and split the bucket and key
