@@ -1,0 +1,130 @@
+import openai
+import os
+import sys
+import json
+import bittensor as bt
+
+# Todo: replace this with corcel impl
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+if openai.api_key is None:
+    print("Error: OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
+    sys.exit(1)
+
+def extract_requirements(issue_text):
+    prompt = f"""You are an assistant that extracts key requirements and expected behaviors from issue descriptions.
+
+    Issue Description:
+    {issue_text}
+
+    Please provide a concise, bulleted list of the key requirements and expected behaviors extracted from the above issue description."""
+        
+    try:
+        response = openai.ChatCompletion.create(
+            model='gpt-4',
+            messages=[{"role": "user", "content": prompt}],
+        )
+        requirements = response['choices'][0]['message']['content']
+    except Exception as e:
+        print(f"Error during OpenAI API call for extract_requirements: {e}")
+        sys.exit(1)
+    return requirements
+
+def analyze_patch(patch_text):
+    prompt = f"""You are an assistant that analyzes code patches and provides a summary of the changes.
+
+    Patch:
+    {patch_text}
+
+    Please provide a concise summary of the changes made in the above patch, including:
+    - The files and functions affected.
+    - The modifications made.
+    - The intended effect of these changes."""
+    
+    try:
+        response = openai.ChatCompletion.create(
+            model='gpt-4',
+            messages=[{"role": "user", "content": prompt}],
+        )
+        analysis = response['choices'][0]['message']['content']
+    except Exception as e:
+        print(f"Error during OpenAI API call for analyze_patch: {e}")
+        sys.exit(1)
+    return analysis
+
+def compare_patch_to_requirements(patch_analysis, requirements):
+    prompt = f"""You are an assistant that compares patch changes to issue requirements.
+
+    Issue Requirements:
+    {requirements}
+
+    Patch Analysis:
+    {patch_analysis}
+
+    Based on the above, please determine to what extent the patch addresses the issue requirements. Provide a summary of which requirements are met, which are partially met, and which are not met."""
+    
+    try:
+        response = openai.ChatCompletion.create(
+            model='gpt-4',
+            messages=[{"role": "user", "content": prompt}],
+        )
+        comparison = response['choices'][0]['message']['content']
+    except Exception as e:
+        print(f"Error during OpenAI API call for compare_patch_to_requirements: {e}")
+        sys.exit(1)
+    return comparison
+
+def compare_patches(patch_analysis1, patch_analysis2):
+    prompt = f"""You are an assistant that compares two code patches.
+
+    Patch Analysis 1:
+    {patch_analysis1}
+
+    Patch Analysis 2:
+    {patch_analysis2}
+
+    Please compare the two patches and determine their similarity on the following metrics:
+    1. issue_similarity (0-100): How similar are the issues being addressed?
+    2. files_similarity (0-100): How similar are the files being modified?
+    3. functions_similarity (0-100): How similar are the functions being affected?
+    4. logic_similarity (0-100): How similar are the logical changes being made?
+    5. overall_similarity (0-100): What is the overall similarity of the patches?
+
+    Provide your analysis as a JSON object with these exact keys: [
+        "issue_similarity", 
+        "files_similarity", 
+        "functions_similarity", 
+        "logic_similarity", 
+        "overall_similarity"
+    ]. The values should be integers between 0 and 100."""
+    
+    try:
+        response = openai.ChatCompletion.create(
+            model='gpt-4',
+            messages=[{"role": "user", "content": prompt}],
+        )
+        comparison = response['choices'][0]['message']['content']
+        # Parse the JSON string to a Python dictionary
+        comparison_dict = json.loads(comparison)
+    except Exception as e:
+        print(f"Error during OpenAI API call or JSON parsing for compare_patches: {e}")
+        sys.exit(1)
+    return comparison_dict
+
+
+def compare_and_score(gt_patch, miner_patch) -> float:
+    """
+    Conducts LLM comparison between the ground truth patch and the miner's 
+    patch and returns a score between 0 and 1.
+    """
+    # Compare the miner's patch to the ground truth patch
+    comparison: dict = compare_patches(gt_patch, miner_patch)
+
+    bt.logging.info(f"Comparison results: {comparison}")
+    # Calculate the score based on the comparison
+    # Get average of the values in the comparison dictionary
+    score = sum(comparison.values()) / len(comparison) / 100
+    return score
+
+if __name__ == "__main__":
+    compare_and_score("", "")

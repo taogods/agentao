@@ -58,7 +58,7 @@ class CodingTask(bt.Synapse):
     s3_code_link: str
 
     # The solution to the challenge, filled by the miner
-    patch: typing.Optional[str]
+    patch: typing.Optional[str] = ''
     ###########################################################################
 
     def deserialize(self) -> str:
@@ -71,6 +71,6 @@ class CodingTask(bt.Synapse):
         - int: The deserialized response, which in this case is the value of dummy_output.
 
         """
-        if self.code_solution is None:
+        if self.patch is None:
             return ""
-        return self.code_solution
+        return self.patch

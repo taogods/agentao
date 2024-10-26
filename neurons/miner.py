@@ -58,12 +58,25 @@ class Miner(BaseMinerNeuron):
         The 'forward' function is a placeholder and should be overridden with logic that is appropriate for
         the miner's intended operation. This method demonstrates a basic transformation of input data.
         """
-
-        local_code_path = download_repo_locally(synapse.code_link)
-        synapse.code_solution = generate_code_patch(
-            UnsolvedIssue(desc=synapse.issue_desc, local_code_path=local_code_path)
-        ).patch
-        return synapse
+        # if patch.txt exists return that
+        try:
+            with open("patch.txt", "r") as f:
+                synapse.patch = f.read()
+                return synapse
+        except FileNotFoundError:
+            pass
+        try:
+            bt.logging.debug(f"Received a request with data: {synapse.s3_code_link}")
+            local_code_path = download_repo_locally(synapse.s3_code_link)
+            synapse.patch = generate_code_patch(
+                UnsolvedIssue(desc=synapse.problem_statement, local_code_path=local_code_path)
+            ).patch
+            with open("patch.txt", "w") as f:
+                f.write(synapse.patch)
+            bt.logging.error(f"Generated patch: {synapse.patch}")
+            return synapse
+        except Exception as e:
+            bt.logging.error(f"Error processing request: {e}")
 
     async def blacklist(
         self, synapse: taoception.protocol.CodingTask

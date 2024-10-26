@@ -40,11 +40,12 @@ from neurons.classes import LabelledIssueTask
 # import base validator class which takes care of most of the boilerplate
 from taoception.base.validator import BaseValidatorNeuron
 # Bittensor Validator Template:
+from taoception.code_compare import compare_and_score
 from taoception.protocol import CodingTask
 from taoception.utils.uids import check_uid_availability
 
 NO_RESPONSE_MINIMUM: float = 0.005
-ISSUES_DATA_ENDPOINT: Final[str] = "TODO"
+ISSUES_DATA_ENDPOINT: Final[str] = "https://forty-geese-watch.loca.lt/task"
 DOCKER_CACHE_LEVEL: str = "instance"
 
 def generate_random_string(length: int) -> str:
@@ -69,10 +70,10 @@ class Validator(BaseValidatorNeuron):
 
         # TODO(developer): Anything specific to your use case you can do here
 
-    async def validate(
-        self,
-        challenge: LabelledIssueTask,
-        responses: typing.List[str],
+    async def calculate_rewards_simulated(
+            self,
+            challenge: LabelledIssueTask,
+            responses: typing.List[str],
     ) -> torch.FloatTensor:
         """
         Validate the responses from the miners. This function should score the responses and return a list of rewards for each miner.
@@ -127,6 +128,16 @@ class Validator(BaseValidatorNeuron):
         # TODO(developer): Implement your scoring function here
         return torch.FloatTensor(tests_passed)
 
+    async def calculate_rewards(self, challenge: LabelledIssueTask, responses: typing.List[str]) -> torch.FloatTensor:
+        """
+        Validate the responses from the miners. This function should score the responses and return a list of rewards for each miner.
+        """
+        return torch.FloatTensor([
+            compare_and_score(challenge.patch, response)
+            for response in responses
+        ])
+
+
     async def forward(self):
         """
         Validator forward pass. Consists of:
@@ -136,17 +147,23 @@ class Validator(BaseValidatorNeuron):
         - Rewarding the miners
         - Updating the scores
         """
-        # get all the miner UIDs
-
         # Generate a coding problem for the miners to solve.
         try:
-            response = requests.get(ISSUES_DATA_ENDPOINT)
+            # Load json at test_issue.json
+            with open("neurons/test_issue.json", "r") as f:
+                response = json.load(f)
+            # response = requests.get(ISSUES_DATA_ENDPOINT)
+            code_challenge: LabelledIssueTask = LabelledIssueTask.model_validate(response)
         except requests.exceptions.HTTPError as error:
-            print(f"Error fetching issue from data endpoint: {error}. Skipping forward pass")
+            bt.logging.error(f"Error fetching issue from data endpoint: {error}. Skipping forward pass")
             return
+        except Exception as e:
+            bt.logging.error(f"Error fetching issue from data endpoint: {e}. Skipping forward pass")
+            return
+        
+        bt.logging.debug(f"Received response from data endpoint: {response.keys()}")
 
-        code_challenge: LabelledIssueTask = LabelledIssueTask.model_validate(response.json())
-
+        # get all the miner UIDs
         miner_uids = []
         for uid in range(len(self.metagraph.S)):
             uid_is_available = check_uid_availability(
@@ -158,39 +175,55 @@ class Validator(BaseValidatorNeuron):
             bt.logging.info("No miners available to query.")
             return
         
+        bt.logging.info(f"Miner UIDs: {miner_uids}")
+        
         # The dendrite client queries the network.
         axons = [self.metagraph.axons[uid] for uid in miner_uids]
+
+        synpase = CodingTask(
+            problem_statement=code_challenge.problem_statement,
+            s3_code_link=code_challenge.s3_repo_url,
+            patch=None,
+        )
+        
         responses = await self.dendrite(
             # Send the query to selected miner axons in the network.
             axons=axons,
             # Construct a dummy query. This simply contains a single integer.
-            synapse=CodingTask(
-                issue_desc=code_challenge.problem_statement,
-                code_link=code_challenge.repo,
-            ),
+            synapse=synpase,
             # All responses have the deserialize function called on them before returning.
             # You are encouraged to define your own deserialization function.
-            deserialize=True,
+            deserialize=False,
             timeout=600, # TODO: need a better timeout method
         ) 
+
+        bt.logging.info(f"Received responses: {responses}")
 
         working_miner_uids = []
         finished_responses = []
 
         for response in responses:
-            if response.code_solution in [None, ""] or not response.axon or not response.axon.hotkey:
+            if not response:
+                bt.logging.info("No response from miner")
+                continue
+            if response.patch in [None, ""] or not response.axon or not response.axon.hotkey:
                 continue
             
             uid = [uid for uid, axon in zip(miner_uids, axons) if axon.hotkey == response.axon.hotkey][0]
             working_miner_uids.append(uid)
-            finished_responses.append(response.code_solution)
+            finished_responses.append(response.patch)
 
         if len(working_miner_uids) == 0:
             bt.logging.info("No miners responded")
-            # TODO: distributed weight evenly
+            # return
 
-        # Score the responses from the different miners
-        rewards_list = await self.validate(code_challenge, finished_responses)
+        try: 
+            rewards_list = await self.calculate_rewards(code_challenge, finished_responses)
+        except Exception as e:
+            bt.logging.error(f"Error calculating rewards: {e}")
+            return
+        
+        bt.logging.debug(f"Rewards: {rewards_list}")
 
         # reward the miners who succeeded
         rewards = []
@@ -200,13 +233,14 @@ class Validator(BaseValidatorNeuron):
                 rewards.append(r)
                 reward_uids.append(r_uid)
         rewards = torch.FloatTensor(rewards).to(self.device)
-        # TODO: update scores here
+        self.update_scores(rewards, reward_uids)
 
         # update scores for miners who failed
         # give min reward to miners who didn't respond
         bad_miner_uids = [uid for uid in miner_uids if uid not in working_miner_uids]
         penalty_tensor = torch.FloatTensor([NO_RESPONSE_MINIMUM] * len(bad_miner_uids)).to(self.device)
-        # TODO: self.update_scores(penalty_tensor, bad_miner_uids)
+        bt.logging.debug(f"Bad miner UIDs: {bad_miner_uids}")
+        self.update_scores(penalty_tensor, bad_miner_uids)
 
 
 # The main function parses the configuration and runs the validator.

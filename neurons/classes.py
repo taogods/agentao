@@ -7,5 +7,6 @@ from pydantic import BaseModel
 
 class LabelledIssueTask(BaseModel):
     problem_statement: str
+    # The solution patch
     patch: str
     s3_repo_url: str
