@@ -1,3 +1,3 @@
-[submodule "SWEAgent"]
-	path = SWEAgent
-	url = https://github.com/princeton-nlp/SWE-agent
+[submodule "SWE-agent"]
+	path = SWE-agent
+	url = git@github.com:Shayansalesi/SWE-agent.git
