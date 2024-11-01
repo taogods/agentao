@@ -1,7 +1,6 @@
 # The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
 # Copyright © 2023 Taoception
-from pathlib import Path
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
@@ -59,18 +58,16 @@ class Miner(BaseMinerNeuron):
         The 'forward' function is a placeholder and should be overridden with logic that is appropriate for
         the miner's intended operation. This method demonstrates a basic transformation of input data.
         """
+        # if patch.txt exists return that
         try:
-            bt.logging.info(f"Received a request with data: {synapse.s3_code_link}")
-
-            jobs_dir = Path("jobs")
-            jobs_dir.mkdir(parents=True, exist_ok=True)
-
-            local_code_path = download_repo_locally(synapse.s3_code_link, jobs_dir)
+            bt.logging.debug(f"Received a request with data: {synapse.s3_code_link}")
+            local_code_path = download_repo_locally(synapse.s3_code_link)
             synapse.patch = generate_code_patch(
                 UnsolvedIssue(desc=synapse.problem_statement, local_code_path=local_code_path)
             ).patch
-
-            bt.logging.debug(f"Generated patch: {synapse.patch}")
+            with open("patch.txt", "w") as f:
+                f.write(synapse.patch)
+            bt.logging.error(f"Generated patch: {synapse.patch}")
             return synapse
         except Exception as e:
             bt.logging.error(f"Error processing request: {e}")

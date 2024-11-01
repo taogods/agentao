@@ -30,8 +30,6 @@ class OpenIssueTask(BaseModel):
     base_commit: str
     # Link to s3 bucket containing the code
     s3_repo_url: str
-    # The name of the repository
-    repo_name: str
     # The statement of the problem 
     problem_statement: str
 

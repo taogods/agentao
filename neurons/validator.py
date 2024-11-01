@@ -212,9 +212,9 @@ class Validator(BaseValidatorNeuron):
         # Generate a coding problem for the miners to solve.
         try:
             # Load json at test_issue.json
-            # with open("neurons/test_issue.json", "r") as f:
-            #     response = json.load(f)
-            response = requests.get(ISSUES_DATA_ENDPOINT)
+            with open("neurons/test_issue.json", "r") as f:
+                response = json.load(f)
+            # response = requests.get(ISSUES_DATA_ENDPOINT).json()
             code_challenge: LabelledIssueTask = LabelledIssueTask.model_validate(response)
         except requests.exceptions.HTTPError as error:
             bt.logging.error(f"Error fetching issue from data endpoint: {error}. Skipping forward pass")
@@ -222,15 +222,15 @@ class Validator(BaseValidatorNeuron):
         except Exception as e:
             bt.logging.error(f"Error fetching issue from data endpoint: {e}. Skipping forward pass")
             return
-        
-        bt.logging.debug(f"Received response from data endpoint: {response.keys()}") 
+
+        bt.logging.debug(f"Received response from data endpoint: {response.keys()}")
 
         synpase = CodingTask(
             problem_statement=code_challenge.problem_statement,
             s3_code_link=code_challenge.s3_repo_url,
             patch=None,
         )
-        
+
         responses = await self.dendrite(
             # Send the query to selected miner axons in the network.
             axons=axons,
@@ -240,7 +240,7 @@ class Validator(BaseValidatorNeuron):
             # You are encouraged to define your own deserialization function.
             deserialize=False,
             timeout=600, # TODO: need a better timeout method
-        ) 
+        )
 
         bt.logging.info(f"Received responses: {responses}")
 
@@ -253,7 +253,7 @@ class Validator(BaseValidatorNeuron):
                 continue
             if response.patch in [None, ""] or not response.axon or not response.axon.hotkey:
                 continue
-            
+
             uid = [uid for uid, axon in zip(miner_uids, axons) if axon.hotkey == response.axon.hotkey][0]
             working_miner_uids.append(uid)
             finished_responses.append(response.patch)
@@ -262,12 +262,12 @@ class Validator(BaseValidatorNeuron):
             bt.logging.info("No miners responded")
             # return
 
-        try: 
+        try:
             rewards_list = await self.calculate_rewards(code_challenge, finished_responses)
         except Exception as e:
             bt.logging.error(f"Error calculating rewards: {e}")
             return
-        
+
         bt.logging.debug(f"Rewards: {rewards_list}")
 
         # reward the miners who succeeded
@@ -295,7 +295,9 @@ class Validator(BaseValidatorNeuron):
         # Generate a coding problem for the miners to solve.
         try:
             response = requests.get(OPEN_ISSUE_ENDPOINT)
-            code_challenge: OpenIssueTask = OpenIssueTask.model_validate(response)
+            print("querying", OPEN_ISSUE_ENDPOINT)
+            print("response is ", response.json())
+            code_challenge: OpenIssueTask = OpenIssueTask.model_validate(response.json())
         except requests.exceptions.HTTPError as error:
             bt.logging.error(f"Error fetching issue from data endpoint: {error}. Skipping forward pass")
             return
@@ -303,7 +305,7 @@ class Validator(BaseValidatorNeuron):
             bt.logging.error(f"Error fetching issue from data endpoint: {e}. Skipping forward pass")
             return
         
-        bt.logging.debug(f"Received response from data endpoint: {response.keys()}")
+        bt.logging.debug(f"Received response from data endpoint: {response.json().keys()}")
 
         # Rate them and select the highest rated one that is above a threshold score
         synapse = CodingTask(
@@ -347,14 +349,13 @@ class Validator(BaseValidatorNeuron):
             if response:
                 best_response, best_response_uid = response
                 break
-        bt.logging.debug(f"Rewards: {rewards_list}")
 
         assert best_response is not None
 
         # ===========  If its good, open a PR with the patch
-        if self.scores[best_response_uid] < 0.9:
-            bt.logging.info("No good PRs found")
-            return
+        # if self.scores[best_response_uid] < 0.9:
+        #     bt.logging.info("No good PRs found")
+        #     return
 
         # open a PR with the patch
         pr = self.open_pr(best_response, code_challenge)

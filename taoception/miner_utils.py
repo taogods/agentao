@@ -33,7 +33,7 @@ def create_script_arguments(unsolved_issue: UnsolvedIssue) -> ScriptArguments:
                 # TODO(alex): Make model configurable
                 model_name="claude-sonnet-3.5",
             ),
-            config_file=Path("SWEAgent/config/default_from_url.yaml"),
+            config_file=Path("SWE-Agent/config/default_from_url.yaml"),
         ),
         actions=ActionsArguments(
             open_pr=False,
