@@ -189,22 +189,6 @@ class Validator(BaseValidatorNeuron):
         - Rewarding the miners
         - Updating the scores
         """
-        # Generate a coding problem for the miners to solve.
-        try:
-            # Load json at test_issue.json
-            with open("neurons/test_issue.json", "r") as f:
-                response = json.load(f)
-            # response = requests.get(ISSUES_DATA_ENDPOINT)
-            code_challenge: LabelledIssueTask = LabelledIssueTask.model_validate(response)
-        except requests.exceptions.HTTPError as error:
-            bt.logging.error(f"Error fetching issue from data endpoint: {error}. Skipping forward pass")
-            return
-        except Exception as e:
-            bt.logging.error(f"Error fetching issue from data endpoint: {e}. Skipping forward pass")
-            return
-        
-        bt.logging.debug(f"Received response from data endpoint: {response.keys()}")
-
         # get all the miner UIDs
         miner_uids = []
         for uid in range(len(self.metagraph.S)):
@@ -225,6 +209,22 @@ class Validator(BaseValidatorNeuron):
         # =============================================================
         # ======================== Coding Task ========================
         # =============================================================
+        # Generate a coding problem for the miners to solve.
+        try:
+            # Load json at test_issue.json
+            # with open("neurons/test_issue.json", "r") as f:
+            #     response = json.load(f)
+            response = requests.get(ISSUES_DATA_ENDPOINT)
+            code_challenge: LabelledIssueTask = LabelledIssueTask.model_validate(response)
+        except requests.exceptions.HTTPError as error:
+            bt.logging.error(f"Error fetching issue from data endpoint: {error}. Skipping forward pass")
+            return
+        except Exception as e:
+            bt.logging.error(f"Error fetching issue from data endpoint: {e}. Skipping forward pass")
+            return
+        
+        bt.logging.debug(f"Received response from data endpoint: {response.keys()}") 
+
         synpase = CodingTask(
             problem_statement=code_challenge.problem_statement,
             s3_code_link=code_challenge.s3_repo_url,
@@ -394,6 +394,7 @@ class Validator(BaseValidatorNeuron):
         # Give weights to the miners who opened PRs that got accepted
         rewards = [1 for _ in pending_rewards]
         uids = [reward.uid for reward in pending_rewards]
+        rewards = torch.FloatTensor(rewards).to(self.device)
         self.update_scores(rewards, uids, TaskType.OPEN_ISSUE)
 
         # Set score to 0 for miners who don't have open PR

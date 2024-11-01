@@ -73,8 +73,12 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Set up initial scoring weights for validation
         bt.logging.info("Building validation weights.")
-        self.scores = np.zeros(self.metagraph.n, dtype=np.float32)
-        self.pr_scores = np.zeros(self.metagraph.n, dtype=np.float32) 
+        self.scores = torch.zeros(
+            self.metagraph.n, dtype=torch.float32, device=self.device
+        )
+        self.pr_scores = torch.zeros(
+            self.metagraph.n, dtype=torch.float32, device=self.device
+        )
 
         # Init sync with the network. Updates the metagraph.
         self.sync()
@@ -250,6 +254,7 @@ class BaseValidatorNeuron(BaseNeuron):
         """
 
         # Check if self.scores contains any NaN values and log a warning if it does.
+        bt.logging.debug("self.scores", type(self.scores))
         if torch.isnan(self.scores).any():
             bt.logging.warning(
                 f"Scores contain NaN values. This may be due to a lack of responses from miners, or a bug in your reward functions."
@@ -278,8 +283,8 @@ class BaseValidatorNeuron(BaseNeuron):
                 processed_weight_uids,
                 processed_weights,
             ) = process_weights_for_netuid(
-                uids=self.metagraph.uids.to("cpu"),
-                weights=raw_weights.to("cpu"),
+                uids=self.metagraph.uids,
+                weights=raw_weights.numpy(),
                 netuid=self.config.netuid,
                 subtensor=self.subtensor,
                 metagraph=self.metagraph,
@@ -335,12 +340,13 @@ class BaseValidatorNeuron(BaseNeuron):
         for uid, hotkey in enumerate(self.hotkeys):
             if hotkey != self.metagraph.hotkeys[uid]:
                 self.scores[uid] = 0  # hotkey has been replaced
+                self.pr_scores[uid] = 0  # hotkey has been replaced
 
         # Check to see if the metagraph has changed size.
         # If so, we need to add new hotkeys and moving averages.
         if len(self.hotkeys) < len(self.metagraph.hotkeys):
             # Update the size of the moving average scores.
-            new_moving_average = np.zeros((self.metagraph.n))
+            new_moving_average = torch.zeros((self.metagraph.n)).to(self.device)
             min_len = min(len(self.hotkeys), len(self.scores))
             new_moving_average[:min_len] = self.scores[:min_len]
             self.scores = new_moving_average
@@ -390,7 +396,7 @@ class BaseValidatorNeuron(BaseNeuron):
         # Update scores with rewards produced by this step.
         # shape: [ metagraph.n ]
         alpha: float = self.config.neuron.moving_average_alpha
-        scores: np.ndarray = alpha * scattered_rewards + (1 - alpha) * self.scores
+        scores: torch.FloatTensor = alpha * scattered_rewards + (1 - alpha) * self.scores.to(self.device)
         bt.logging.debug(f"Updated moving avg scores: {scores}")
 
     def save_state(self):
@@ -398,11 +404,14 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.info("Saving validator state.")
 
         # Save the state of the validator to file.
-        np.savez(
-            self.config.neuron.full_path + "/state.npz",
-            step=self.step,
-            scores=self.scores,
-            hotkeys=self.hotkeys,
+        torch.save(
+            {
+                "step": self.step,
+                "scores": self.scores,
+                "pr_scores": self.pr_scores,
+                "hotkeys": self.hotkeys,
+            },
+            self.config.neuron.full_path + "/state.pt",
         )
 
     def load_state(self):
@@ -410,7 +419,13 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.info("Loading validator state.")
 
         # Load the state of the validator from file.
-        state = np.load(self.config.neuron.full_path + "/state.npz")
+        state = torch.load(self.config.neuron.full_path + "/state.pt", map_location=self.device)
         self.step = state["step"]
         self.scores = state["scores"]
+        if "pr_scores" in state:
+            self.pr_scores = state["pr_scores"]
+        else:
+            state["pr_scores"] = torch.zeros(
+                self.metagraph.n, dtype=torch.float32, device=self.device
+            )
         self.hotkeys = state["hotkeys"]
