@@ -150,9 +150,10 @@ class Validator(BaseValidatorNeuron):
         Open a PR with the given patch and open issue task.
         """
         try:
+            bt.logging.info(f"{open_issue.issue_url} {open_issue.base_commit}")
             script_arguments = EnvironmentArguments(
                 image_name="sweagent/swe-agent:latest",
-                data_path=f"text://{open_issue.issue_url}",
+                data_path=open_issue.issue_url,
                 repo_path=open_issue.repo_url,
                 base_commit=open_issue.base_commit,
                 verbose=True,
@@ -174,6 +175,7 @@ class Validator(BaseValidatorNeuron):
                 error_msg="Failed to apply test patch correctly",
             )
             os.remove(path_to_patch)
+            bt.logging.info("Opening PR")
             pr = env.open_pr(trajectory="", _dry_run=False)
             return pr
         except Exception as e:
@@ -210,82 +212,82 @@ class Validator(BaseValidatorNeuron):
         # ======================== Coding Task ========================
         # =============================================================
         # Generate a coding problem for the miners to solve.
-        try:
-            # Load json at test_issue.json
-            with open("neurons/test_issue.json", "r") as f:
-                response = json.load(f)
-            # response = requests.get(ISSUES_DATA_ENDPOINT).json()
-            code_challenge: LabelledIssueTask = LabelledIssueTask.model_validate(response)
-        except requests.exceptions.HTTPError as error:
-            bt.logging.error(f"Error fetching issue from data endpoint: {error}. Skipping forward pass")
-            return
-        except Exception as e:
-            bt.logging.error(f"Error fetching issue from data endpoint: {e}. Skipping forward pass")
-            return
+        # try:
+        #     # Load json at test_issue.json
+        #     with open("neurons/test_issue.json", "r") as f:
+        #         response = json.load(f)
+        #     # response = requests.get(ISSUES_DATA_ENDPOINT).json()
+        #     code_challenge: LabelledIssueTask = LabelledIssueTask.model_validate(response)
+        # except requests.exceptions.HTTPError as error:
+        #     bt.logging.error(f"Error fetching issue from data endpoint: {error}. Skipping forward pass")
+        #     return
+        # except Exception as e:
+        #     bt.logging.error(f"Error fetching issue from data endpoint: {e}. Skipping forward pass")
+        #     return
 
-        bt.logging.debug(f"Received response from data endpoint: {response.keys()}")
+        # bt.logging.debug(f"Received response from data endpoint: {response.keys()}")
 
-        synpase = CodingTask(
-            problem_statement=code_challenge.problem_statement,
-            s3_code_link=code_challenge.s3_repo_url,
-            patch=None,
-        )
+        # synpase = CodingTask(
+        #     problem_statement=code_challenge.problem_statement,
+        #     s3_code_link=code_challenge.s3_repo_url,
+        #     patch=None,
+        # )
 
-        responses = await self.dendrite(
-            # Send the query to selected miner axons in the network.
-            axons=axons,
-            # Construct a dummy query. This simply contains a single integer.
-            synapse=synpase,
-            # All responses have the deserialize function called on them before returning.
-            # You are encouraged to define your own deserialization function.
-            deserialize=False,
-            timeout=600, # TODO: need a better timeout method
-        )
+        # responses = await self.dendrite(
+        #     # Send the query to selected miner axons in the network.
+        #     axons=axons,
+        #     # Construct a dummy query. This simply contains a single integer.
+        #     synapse=synpase,
+        #     # All responses have the deserialize function called on them before returning.
+        #     # You are encouraged to define your own deserialization function.
+        #     deserialize=False,
+        #     timeout=600, # TODO: need a better timeout method
+        # )
 
-        bt.logging.info(f"Received responses: {responses}")
+        # bt.logging.info(f"Received responses: {responses}")
 
-        working_miner_uids = []
-        finished_responses = []
+        # working_miner_uids = []
+        # finished_responses = []
 
-        for response in responses:
-            if not response:
-                bt.logging.info("No response from miner")
-                continue
-            if response.patch in [None, ""] or not response.axon or not response.axon.hotkey:
-                continue
+        # for response in responses:
+        #     if not response:
+        #         bt.logging.info("No response from miner")
+        #         continue
+        #     if response.patch in [None, ""] or not response.axon or not response.axon.hotkey:
+        #         continue
 
-            uid = [uid for uid, axon in zip(miner_uids, axons) if axon.hotkey == response.axon.hotkey][0]
-            working_miner_uids.append(uid)
-            finished_responses.append(response.patch)
+        #     uid = [uid for uid, axon in zip(miner_uids, axons) if axon.hotkey == response.axon.hotkey][0]
+        #     working_miner_uids.append(uid)
+        #     finished_responses.append(response.patch)
 
-        if len(working_miner_uids) == 0:
-            bt.logging.info("No miners responded")
-            # return
+        # if len(working_miner_uids) == 0:
+        #     bt.logging.info("No miners responded")
+        #     # return
 
-        try:
-            rewards_list = await self.calculate_rewards(code_challenge, finished_responses)
-        except Exception as e:
-            bt.logging.error(f"Error calculating rewards: {e}")
-            return
+        # try:
+        #     rewards_list = await self.calculate_rewards(code_challenge, finished_responses)
+        # except Exception as e:
+        #     bt.logging.error(f"Error calculating rewards: {e}")
+        #     return
 
-        bt.logging.debug(f"Rewards: {rewards_list}")
+        # bt.logging.debug(f"Rewards: {rewards_list}")
 
-        # reward the miners who succeeded
-        rewards = []
-        reward_uids = []
-        for r, r_uid in zip(rewards_list, working_miner_uids):
-            if r is not None:
-                rewards.append(r)
-                reward_uids.append(r_uid)
-        rewards = torch.FloatTensor(rewards).to(self.device)
-        self.update_scores(rewards, reward_uids, TaskType.LABELLED_ISSUE)
+        # # reward the miners who succeeded
+        # rewards = []
+        # reward_uids = []
+        # for r, r_uid in zip(rewards_list, working_miner_uids):
+        #     if r is not None:
+        #         rewards.append(r)
+        #         reward_uids.append(r_uid)
+        # rewards = torch.FloatTensor(rewards).to(self.device)
+        # self.update_scores(rewards, reward_uids, TaskType.LABELLED_ISSUE)
 
-        # update scores for miners who failed
-        # give min reward to miners who didn't respond
-        bad_miner_uids = [uid for uid in miner_uids if uid not in working_miner_uids]
-        penalty_tensor = torch.FloatTensor([NO_RESPONSE_MINIMUM] * len(bad_miner_uids)).to(self.device)
-        bt.logging.debug(f"Bad miner UIDs: {bad_miner_uids}")
-        self.update_scores(penalty_tensor, bad_miner_uids, TaskType.LABELLED_ISSUE)
+        # # update scores for miners who failed
+        # # give min reward to miners who didn't respond
+        # bad_miner_uids = [uid for uid in miner_uids if uid not in working_miner_uids]
+        # penalty_tensor = torch.FloatTensor([NO_RESPONSE_MINIMUM] * len(bad_miner_uids)).to(self.device)
+        # bt.logging.debug(f"Bad miner UIDs: {bad_miner_uids}")
+        # self.update_scores(penalty_tensor, bad_miner_uids, TaskType.LABELLED_ISSUE)
 
         # ================================================================
         # ========================= Open PR Task =========================

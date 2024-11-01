@@ -62,11 +62,14 @@ class Miner(BaseMinerNeuron):
         try:
             bt.logging.debug(f"Received a request with data: {synapse.s3_code_link}")
             local_code_path = download_repo_locally(synapse.s3_code_link)
-            synapse.patch = generate_code_patch(
-                UnsolvedIssue(desc=synapse.problem_statement, local_code_path=local_code_path)
-            ).patch
-            with open("patch.txt", "w") as f:
-                f.write(synapse.patch)
+            # synapse.patch = generate_code_patch(
+            #     UnsolvedIssue(desc=synapse.problem_statement, local_code_path=local_code_path)
+            # ).patch
+            
+            # with open("patch.txt", "w") as f:
+            #     f.write(synapse.patch)
+            with open("patch.txt", "r") as f:
+                synapse.patch = f.read()
             bt.logging.error(f"Generated patch: {synapse.patch}")
             return synapse
         except Exception as e:
