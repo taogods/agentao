@@ -8,4 +8,5 @@ numpy>=1
 setuptools>=68
 ipython
 ipdb
-git+https://github.com/princeton-nlp/SWE-bench.git#egg=swebench
+swebench
+boto3
