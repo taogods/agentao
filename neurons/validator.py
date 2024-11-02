@@ -192,13 +192,10 @@ class Validator(BaseValidatorNeuron):
         - Updating the scores
         """
         # get all the miner UIDs
-        miner_uids = []
-        for uid in range(len(self.metagraph.S)):
-            uid_is_available = check_uid_availability(
-                self.metagraph, uid, self.config.neuron.vpermit_tao_limit
-            )
-            if uid_is_available:
-                miner_uids.append(uid)
+        miner_uids = [
+            uid for uid in range(len(self.metagraph.S))
+            if check_uid_availability(self.metagraph, uid, self.config.neuron.vpermit_tao_limit)
+        ]
         if len(miner_uids) == 0:
             bt.logging.info("No miners available to query.")
             return
@@ -310,15 +307,13 @@ class Validator(BaseValidatorNeuron):
         bt.logging.debug(f"Received response from data endpoint: {response.json().keys()}")
 
         # Rate them and select the highest rated one that is above a threshold score
-        synapse = CodingTask(
-            problem_statement=code_challenge.problem_statement,
-            s3_code_link=code_challenge.s3_repo_url,
-            patch=None,
-        )
-
         responses = await self.dendrite(
             axons=axons,
-            synapse=synapse,
+            synapse=CodingTask(
+                problem_statement=code_challenge.problem_statement,
+                s3_code_link=code_challenge.s3_repo_url,
+                patch=None,
+            ),
             deserialize=False,
             timeout=600,
         )
