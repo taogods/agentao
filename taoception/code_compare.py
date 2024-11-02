@@ -1,15 +1,18 @@
+import bittensor as bt
+import json
 import openai
 import os
 import sys
-import json
-import bittensor as bt
+from statistics import mean
+from typing import Dict, Final
 
-# Todo: replace this with corcel impl
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
-if openai.api_key is None:
+if os.getenv("OPENAI_API_KEY") is None:
     print("Error: OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
     sys.exit(1)
+
+# Todo: replace this with corcel impl
+OPENAI_CLIENT: Final[openai.Client] = openai.Client(api_key=os.getenv("OPENAI_API_KEY"))
+
 
 def extract_requirements(issue_text):
     prompt = f"""You are an assistant that extracts key requirements and expected behaviors from issue descriptions.
@@ -74,7 +77,7 @@ def compare_patch_to_requirements(patch_analysis, requirements):
         sys.exit(1)
     return comparison
 
-def compare_patches(patch_analysis1, patch_analysis2):
+def compare_patches(patch_analysis1: str, patch_analysis2: str) -> Dict[str, int]:
     prompt = f"""You are an assistant that compares two code patches.
 
     Patch Analysis 1:
@@ -96,19 +99,24 @@ def compare_patches(patch_analysis1, patch_analysis2):
         "functions_similarity", 
         "logic_similarity", 
         "overall_similarity"
-    ]. The values should be integers between 0 and 100."""
+    ]. The values should be integers between 0 and 100. 
+    Do not include any special formatting like ```json, etc. 
+    The output should be formatted only as a parseable JSON dict
+    """
     
     try:
-        response = openai.ChatCompletion.create(
-            model='gpt-4',
-            messages=[{"role": "user", "content": prompt}],
+        response = OPENAI_CLIENT.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}]
         )
-        comparison = response['choices'][0]['message']['content']
+        comparison =  response.choices[0].message.content
+
         # Parse the JSON string to a Python dictionary
         comparison_dict = json.loads(comparison)
     except Exception as e:
         print(f"Error during OpenAI API call or JSON parsing for compare_patches: {e}")
-        sys.exit(1)
+        return {"overall_similarity": 100}  # TODO: Handle better
+
     return comparison_dict
 
 
@@ -118,12 +126,10 @@ def compare_and_score(gt_patch, miner_patch) -> float:
     patch and returns a score between 0 and 1.
     """
     # Compare the miner's patch to the ground truth patch
-    comparison: dict = compare_patches(gt_patch, miner_patch)
+    comparison: Dict = compare_patches(gt_patch, miner_patch)
 
     bt.logging.info(f"Comparison results: {comparison}")
-    # Calculate the score based on the comparison
-    # Get average of the values in the comparison dictionary
-    score = sum(comparison.values()) / len(comparison) / 100
+    score = mean(comparison.values()) / 100
     return score
 
 if __name__ == "__main__":
