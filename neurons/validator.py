@@ -361,7 +361,7 @@ class Validator(BaseValidatorNeuron):
         if pr:
             keypair = self.dendrite.keypair
             hotkey = keypair.ss58_address
-            signature = f"0x{keypair.sign(hotkey).hex}"
+            signature = f"0x{keypair.sign(hotkey).hex()}"
             try:
                 async with ClientSession() as session:
                     payload = {
@@ -385,9 +385,6 @@ class Validator(BaseValidatorNeuron):
         pending_rewards = [PendingRewards.model_validate(reward) for reward in response.json()]
         if pending_rewards == []:
             return
-
-        # TODO: Check disk db for rewards that have been given. Ask Parshant how we does this
-        # with omega focus videos
 
         # Give weights to the miners who opened PRs that got accepted
         rewards = [1 for _ in pending_rewards]
