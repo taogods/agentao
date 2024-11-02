@@ -382,23 +382,25 @@ class BaseValidatorNeuron(BaseNeuron):
         else:
             uids_tensor = torch.tensor(uids).to(self.device)
 
-        if task_type == TaskType.LABELLED_ISSUE:
-            scores = self.scores
-        elif task_type == TaskType.OPEN_ISSUE:
-            scores = self.pr_scores
-
         # Compute forward pass rewards, assumes uids are mutually exclusive.
         # shape: [ metagraph.n ]
-        scattered_rewards: torch.FloatTensor = scores.to(self.device).scatter(
-            0, uids_tensor.to(self.device), rewards.to(self.device)
-        ).to(self.device)
-        bt.logging.debug(f"Scattered rewards: {rewards}")
-
         # Update scores with rewards produced by this step.
         # shape: [ metagraph.n ]
         alpha: float = self.config.neuron.moving_average_alpha
-        scores: torch.FloatTensor = alpha * scattered_rewards + (1 - alpha) * self.scores.to(self.device)
-        bt.logging.debug(f"Updated moving avg scores: {scores}")
+        if task_type == TaskType.LABELLED_ISSUE:
+            scattered_rewards: torch.FloatTensor = self.scores.to(self.device).scatter(
+                0, uids_tensor.to(self.device), rewards.to(self.device)
+            ).to(self.device)
+            bt.logging.debug(f"Scattered rewards: {rewards}")
+            self.scores: torch.FloatTensor = alpha * scattered_rewards + (1 - alpha) * self.scores.to(self.device)
+            bt.logging.debug(f"Updated moving avg scores: {self.scores}")
+        elif task_type == TaskType.OPEN_ISSUE:
+            scattered_rewards: torch.FloatTensor = self.pr_scores.to(self.device).scatter(
+                0, uids_tensor.to(self.device), rewards.to(self.device)
+            ).to(self.device)
+            bt.logging.debug(f"Scattered rewards: {rewards}")
+            self.pr_scores: torch.FloatTensor = alpha * scattered_rewards + (1 - alpha) * self.pr_scores.to(self.device)
+            bt.logging.debug(f"Updated moving avg scores: {self.pr_scores}")
 
     def save_state(self):
         """Saves the state of the validator to a file."""
