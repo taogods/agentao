@@ -17,31 +17,22 @@
 # DEALINGS IN THE SOFTWARE.
 
 
+import bittensor as bt
 import json
 import numpy as np
 import os
 import random
+import requests
 import string
 import subprocess
 import time
 import typing
-from typing import Final, Optional
-from github.PullRequest import PullRequest
-
 # Bittensor
 from aiohttp import BasicAuth, ClientSession
-import bittensor as bt
-import docker
-import requests
-import swebench
-import swebench.harness
-import swebench.harness.docker_build
-import swebench.harness.docker_utils
-import swebench.harness.run_evaluation
-import swebench.harness.test_spec
-import torch
-
+from github.PullRequest import PullRequest
 from sweagent.environment.swe_env import EnvironmentArguments, SWEEnv
+from typing import Final, Optional
+
 from neurons.classes import LabelledIssueTask, OpenIssueTask, PendingRewards
 # import base validator class which takes care of most of the boilerplate
 from taoception.base.validator import BaseValidatorNeuron, TaskType
@@ -205,19 +196,18 @@ class Validator(BaseValidatorNeuron):
         bt.logging.debug(f"Rewards: {rewards_list}")
 
         # reward the miners who succeeded
-        rewards = np.array()
+        rewards = []
         reward_uids = []
         for r, r_uid in zip(rewards_list, working_miner_uids):
             if r is not None:
                 rewards.append(r)
                 reward_uids.append(r_uid)
-        rewards = np.array
-        self.update_scores(rewards, reward_uids, TaskType.LABELLED_ISSUE)
+        self.update_scores(np.array(rewards), reward_uids, TaskType.LABELLED_ISSUE)
 
         # update scores for miners who failed
         # give min reward to miners who didn't respond
         bad_miner_uids = [uid for uid in miner_uids if uid not in working_miner_uids]
-        penalty_tensor = torch.FloatTensor([NO_RESPONSE_MINIMUM] * len(bad_miner_uids)).to(self.device)
+        penalty_tensor = np.array([NO_RESPONSE_MINIMUM] * len(bad_miner_uids))
         bt.logging.debug(f"Bad miner UIDs: {bad_miner_uids}")
         self.update_scores(penalty_tensor, bad_miner_uids, TaskType.LABELLED_ISSUE)
 
@@ -319,14 +309,13 @@ class Validator(BaseValidatorNeuron):
             return
 
         # Give weights to the miners who opened PRs that got accepted
-        rewards = [1 for _ in pending_rewards]
+        rewards = np.ones_like(len(pending_rewards))
         uids = [reward.uid for reward in pending_rewards]
-        rewards = torch.FloatTensor(rewards).to(self.device)
         self.update_scores(rewards, uids, TaskType.OPEN_ISSUE)
 
         # Set score to 0 for miners who don't have open PR
         bad_miner_uids = [uid for uid in miner_uids if uid not in uids]
-        penalty_tensor = torch.FloatTensor([0] * len(bad_miner_uids)).to(self.device)
+        penalty_tensor = np.zeros_like(bad_miner_uids)
         self.update_scores(penalty_tensor, bad_miner_uids, TaskType.OPEN_ISSUE)
 
 

@@ -17,26 +17,27 @@
 # DEALINGS IN THE SOFTWARE.
 
 
+import argparse
+import asyncio
+import bittensor as bt
 import copy
 import numpy as np
-import asyncio
-import argparse
 import threading
-import bittensor as bt
-import torch
 from enum import Enum
-
-from typing import List, Union
 from traceback import print_exception
+from typing import List, Union
 
 from taoception.base.neuron import BaseNeuron
 from taoception.base.utils.weight_utils import (
-    process_weights_for_netuid,
     convert_weights_and_uids_for_emit,
 )  # TODO: Replace when bittensor switches to numpy
 from taoception.mock import MockDendrite
 from taoception.utils.config import add_validator_args
 
+
+def normalize(x, p=2, dim=0):
+    norm = np.linalg.norm(x, ord=p, axis=dim, keepdims=True)
+    return x / np.clip(norm, 1e-12, None)
 
 class TaskType(Enum):
     """
@@ -73,11 +74,11 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Set up initial scoring weights for validation
         bt.logging.info("Building validation weights.")
-        self.scores = torch.zeros(
-            self.metagraph.n, dtype=torch.float32, device=self.device
+        self.scores = np.zeros(
+            self.metagraph.n, dtype=np.float32
         )
-        self.pr_scores = torch.zeros(
-            self.metagraph.n, dtype=torch.float32, device=self.device
+        self.pr_scores = np.zeros(
+            self.metagraph.n, dtype=np.float32
         )
 
         # Init sync with the network. Updates the metagraph.
@@ -228,26 +229,6 @@ class BaseValidatorNeuron(BaseNeuron):
             self.is_running = False
             bt.logging.debug("Stopped")
 
-    def pad_tensors(self, tensor_a, tensor_b):
-        # Ensure both tensors are on the same device
-        device = tensor_a.device
-        tensor_b = tensor_b.to(device)
-
-        if tensor_a.size() != tensor_b.size():
-            max_size = max(tensor_a.size(0), tensor_b.size(0))
-
-            if tensor_a.size(0) < max_size:
-                padding = torch.zeros(max_size - tensor_a.size(0), device=device)
-                tensor_a = torch.cat((tensor_a, padding))
-                print("tensor a was padded")
-            if tensor_b.size(0) < max_size:
-                padding = torch.zeros(max_size - tensor_b.size(0), device=device)
-                tensor_b = torch.cat((tensor_b, padding))
-                print("tensor b was padded")
-
-        return tensor_a, tensor_b
-
-
     def set_weights(self):
         """
         Sets the validator weights to the metagraph hotkeys based on the scores it has received from the miners. The weights determine the trust and incentive level the validator assigns to miner nodes on the network.
@@ -255,20 +236,18 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Check if self.scores contains any NaN values and log a warning if it does.
         bt.logging.debug("self.scores", type(self.scores))
-        if torch.isnan(self.scores).any():
+        if np.isnan(self.scores).any():
             bt.logging.warning(
                 f"Scores contain NaN values. This may be due to a lack of responses from miners, or a bug in your reward functions."
             )
-
-        self.scores, self.pr_scores = self.pad_tensors(self.scores, self.pr_scores)
 
         CLOSED_PR_PCT = 0.3
         OPEN_PR_PCT = 0.7 
         # Calculate the average reward for each uid across non-zero values.
         # Replace any NaN values with 0.
         # Compute the norm of the scores
-        raw_weights_closed = torch.nn.functional.normalize(self.scores, p=1, dim=0) * CLOSED_PR_PCT
-        raw_weights_open = torch.nn.functional.normalize(self.pr_scores, p=1, dim=0) * OPEN_PR_PCT
+        raw_weights_closed = normalize(self.scores, p=1, dim=0) * CLOSED_PR_PCT
+        raw_weights_open = normalize(self.pr_scores, p=1, dim=0) * OPEN_PR_PCT
         raw_weights = raw_weights_closed + raw_weights_open
 
         if raw_weights.shape[0] > self.metagraph.uids.shape[0]:
@@ -279,13 +258,12 @@ class BaseValidatorNeuron(BaseNeuron):
         # bt.logging.debug("raw_weight_uids", str(self.metagraph.uids.tolist()))
         # Process the raw weights to final_weights via subtensor limitations.
         try:
-            # import ipdb; ipdb.set_trace()
             (
                 processed_weight_uids,
                 processed_weights,
             ) = bt.utils.weight_utils.process_weights_for_netuid(
                 uids=self.metagraph.uids,
-                weights=raw_weights.numpy(),
+                weights=raw_weights,
                 netuid=self.config.netuid,
                 subtensor=self.subtensor,
                 metagraph=self.metagraph,
@@ -347,7 +325,7 @@ class BaseValidatorNeuron(BaseNeuron):
         # If so, we need to add new hotkeys and moving averages.
         if len(self.hotkeys) < len(self.metagraph.hotkeys):
             # Update the size of the moving average scores.
-            new_moving_average = torch.zeros((self.metagraph.n)).to(self.device)
+            new_moving_average = np.zeros((self.metagraph.n))
             min_len = min(len(self.hotkeys), len(self.scores))
             new_moving_average[:min_len] = self.scores[:min_len]
             self.scores = new_moving_average
@@ -356,9 +334,9 @@ class BaseValidatorNeuron(BaseNeuron):
         # Update the hotkeys.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
 
-    def update_scores(self, rewards: torch.FloatTensor, uids: List[int], task_type: TaskType):
+    def update_scores(self, rewards: np.ndarray, uids: List[int], task_type: TaskType):
         """Performs exponential moving average on the scores based on the rewards received from the miners."""
- 
+
         if len(rewards) == 0:
             bt.logging.debug("self.update_scores: Rewards are empty, returning early")
             return
@@ -372,16 +350,16 @@ class BaseValidatorNeuron(BaseNeuron):
             return
         
         # Check if rewards contains NaN values.
-        if torch.isnan(rewards).any():
+        if np.isnan(rewards).any():
             bt.logging.warning(f"NaN values detected in rewards: {rewards}")
             # Replace any NaN values in rewards with 0.
-            rewards = torch.nan_to_num(rewards, nan=0)
+            rewards = np.nan_to_num(rewards, nan=0)
 
         # Check if `uids` is already a numpy array and copy it to avoid the warning.
-        if isinstance(uids, torch.Tensor):
+        if isinstance(uids, np.ndarray):
             uids_tensor = uids.clone().detach()
         else:
-            uids_tensor = torch.tensor(uids).to(self.device)
+            uids_tensor = np.array(uids)
 
         # Compute forward pass rewards, assumes uids are mutually exclusive.
         # shape: [ metagraph.n ]
@@ -389,13 +367,12 @@ class BaseValidatorNeuron(BaseNeuron):
         # shape: [ metagraph.n ]
         alpha: float = self.config.neuron.moving_average_alpha
 
-        def calculate_scores(old_scores: torch.FloatTensor) -> torch.FloatTensor:
-            scattered_rewards: torch.FloatTensor = old_scores.to(self.device).scatter(
-                0, uids_tensor.to(self.device), rewards.to(self.device)
-            ).to(self.device)
+        def calculate_scores(old_scores: np.ndarray) -> np.ndarray:
+            scattered_rewards = np.copy(old_scores)  # Create a copy to modify
+            np.put_along_axis(scattered_rewards, uids_tensor, rewards, axis=0)
             bt.logging.debug(f"Scattered rewards: {rewards}")
 
-            scores = alpha * scattered_rewards + (1 - alpha) * old_scores.to(self.device)
+            scores = alpha * scattered_rewards + (1 - alpha) * old_scores
             bt.logging.debug(f"New moving avg scores: {scores}")
             return scores
 
@@ -410,14 +387,12 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.info("Saving validator state.")
 
         # Save the state of the validator to file.
-        torch.save(
-            {
-                "step": self.step,
-                "scores": self.scores,
-                "pr_scores": self.pr_scores,
-                "hotkeys": self.hotkeys,
-            },
-            self.config.neuron.full_path + "/state.pt",
+        np.savez_compressed(
+            self.config.neuron.full_path + "/state.npz",
+            step=self.step,
+            scores=self.scores,
+            pr_scores=self.pr_scores,
+            hotkeys=self.hotkeys,
         )
 
     def load_state(self):
@@ -425,13 +400,13 @@ class BaseValidatorNeuron(BaseNeuron):
         bt.logging.info("Loading validator state.")
 
         # Load the state of the validator from file.
-        state = torch.load(self.config.neuron.full_path + "/state.pt", map_location=self.device)
+        state = np.load(self.config.neuron.full_path + "/state.npz")
         self.step = state["step"]
         self.scores = state["scores"]
         if "pr_scores" in state:
             self.pr_scores = state["pr_scores"]
         else:
-            state["pr_scores"] = torch.zeros(
-                self.metagraph.n, dtype=torch.float32, device=self.device
+            state["pr_scores"] = np.zeros(
+                self.metagraph.n, dtype=np.float32
             )
         self.hotkeys = state["hotkeys"]
