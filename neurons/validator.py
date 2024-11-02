@@ -18,6 +18,7 @@
 
 
 import json
+import numpy as np
 import os
 import random
 import string
@@ -78,69 +79,11 @@ class Validator(BaseValidatorNeuron):
 
         # TODO(developer): Anything specific to your use case you can do here
 
-    async def calculate_rewards_simulated(
-            self,
-            challenge: LabelledIssueTask,
-            responses: typing.List[str],
-    ) -> torch.FloatTensor:
-        """
-        Validate the responses from the miners. This function should score the responses and return a list of rewards for each miner.
-
-        Args:
-            challenge (LabelledIssueTask): The challenge that was sent to the miners.
-            responses (List[str]): The responses from the miners.
-
-        Returns:
-            torch.FloatTensor: A list of rewards for each miner.
-        """
-        client = docker.from_env()
-        existing_images = swebench.list_images(client)
-        instance = challenge.to_swebench_instance()
-        swebench.harness.docker_build.build_env_images(client, [instance])
-
-        # run tests
-        test_specs = swebench.harness.test_spec.make_test_spec(instance)
-        tests_passed = []
-
-        for prediction in responses:
-            prediction = {
-                "instance_id": challenge.instance_id,
-                "model_patch": prediction,
-                "model_name_or_path": "taoception"
-            }
-            run_id = generate_random_string(5)
-            swebench.harness.run_evaluation.run_instance(
-                test_specs,
-                prediction,
-                True,
-                False,
-                client,
-                "WF"
-            )
-
-            test_report = swebench.harness.run_evaluation.make_run_report(
-                {prediction["instance_id"]: prediction},
-                [instance],
-                client,
-                run_id
-            )
-            with test_report.open('r') as f:
-                test_report = json.load(f)
-
-            if test_report['error_ids']:
-                tests_passed.append(0)
-            else: tests_passed.append(1)
-
-        swebench.harness.docker_utils.clean_images(client, existing_images, DOCKER_CACHE_LEVEL, False)
-
-        # TODO(developer): Implement your scoring function here
-        return torch.FloatTensor(tests_passed)
-
-    async def calculate_rewards(self, challenge: LabelledIssueTask, responses: typing.List[str]) -> torch.FloatTensor:
+    async def calculate_rewards(self, challenge: LabelledIssueTask, responses: typing.List[str]) -> np.ndarray:
         """
         Validate the responses from the miners. This function should score the responses and return a list of rewards for each miner.
         """
-        return torch.FloatTensor([
+        return np.array([
             compare_and_score(challenge.patch, response)
             for response in responses
         ])
@@ -208,84 +151,77 @@ class Validator(BaseValidatorNeuron):
         # =============================================================
         # ======================== Coding Task ========================
         # =============================================================
-        # Generate a coding problem for the miners to solve.
-        # try:
-        #     # Load json at test_issue.json
-        #     with open("neurons/test_issue.json", "r") as f:
-        #         response = json.load(f)
-        #     # response = requests.get(ISSUES_DATA_ENDPOINT).json()
-        #     code_challenge: LabelledIssueTask = LabelledIssueTask.model_validate(response)
-        # except requests.exceptions.HTTPError as error:
-        #     bt.logging.error(f"Error fetching issue from data endpoint: {error}. Skipping forward pass")
-        #     return
-        # except Exception as e:
-        #     bt.logging.error(f"Error fetching issue from data endpoint: {e}. Skipping forward pass")
-        #     return
+        # Open issue
+        try:
+            with open("neurons/test_issue.json", "r") as f:
+                response = json.load(f)
+            # response = requests.get(ISSUES_DATA_ENDPOINT).json()
+            code_challenge: LabelledIssueTask = LabelledIssueTask.model_validate(response)
+        except Exception as e:
+            bt.logging.error(f"Error fetching issue from data endpoint: {e}. Skipping forward pass")
+            # TODO: How should weights be assigned in this case?
+            return
 
-        # bt.logging.debug(f"Received response from data endpoint: {response.keys()}")
+        bt.logging.debug(f"Received response from data endpoint: {response.keys()}")
 
-        # synpase = CodingTask(
-        #     problem_statement=code_challenge.problem_statement,
-        #     s3_code_link=code_challenge.s3_repo_url,
-        #     patch=None,
-        # )
+        responses: typing.List[CodingTask] = await self.dendrite(
+            axons=axons,
+            synapse=CodingTask(
+                problem_statement=code_challenge.problem_statement,
+                s3_code_link=code_challenge.s3_repo_url,
+                patch=None,
+            ),
+            # All responses have the deserialize function called on them before returning.
+            # You are encouraged to define your own deserialization function.
+            deserialize=False,
+            timeout=6000, # TODO: need a better timeout method
+        )
 
-        # responses = await self.dendrite(
-        #     # Send the query to selected miner axons in the network.
-        #     axons=axons,
-        #     # Construct a dummy query. This simply contains a single integer.
-        #     synapse=synpase,
-        #     # All responses have the deserialize function called on them before returning.
-        #     # You are encouraged to define your own deserialization function.
-        #     deserialize=False,
-        #     timeout=600, # TODO: need a better timeout method
-        # )
+        bt.logging.info(f"Received responses: {responses}")
 
-        # bt.logging.info(f"Received responses: {responses}")
+        working_miner_uids = []
+        finished_responses = []
 
-        # working_miner_uids = []
-        # finished_responses = []
+        for response in responses:
+            if not response:
+                bt.logging.info("No response from miner")
+            elif response.patch in [None, ""] or not response.axon or not response.axon.hotkey:
+                bt.logging.info("No patch from miner")
+            else:
+                uid = next(uid for uid, axon in zip(miner_uids, axons) if axon.hotkey == response.axon.hotkey)
+                working_miner_uids.append(uid)
+                finished_responses.append(response.patch)
 
-        # for response in responses:
-        #     if not response:
-        #         bt.logging.info("No response from miner")
-        #         continue
-        #     if response.patch in [None, ""] or not response.axon or not response.axon.hotkey:
-        #         continue
+        if len(working_miner_uids) == 0:
+            bt.logging.info("No miners responded")
+            return
 
-        #     uid = [uid for uid, axon in zip(miner_uids, axons) if axon.hotkey == response.axon.hotkey][0]
-        #     working_miner_uids.append(uid)
-        #     finished_responses.append(response.patch)
+        try:
+            rewards_list = await self.calculate_rewards(code_challenge, finished_responses)
+        except Exception as e:
+            bt.logging.error(f"Error calculating rewards: {e}")
+            return
 
-        # if len(working_miner_uids) == 0:
-        #     bt.logging.info("No miners responded")
-        #     # return
+        bt.logging.debug(f"Rewards: {rewards_list}")
 
-        # try:
-        #     rewards_list = await self.calculate_rewards(code_challenge, finished_responses)
-        # except Exception as e:
-        #     bt.logging.error(f"Error calculating rewards: {e}")
-        #     return
+        # reward the miners who succeeded
+        rewards = np.array()
+        reward_uids = []
+        for r, r_uid in zip(rewards_list, working_miner_uids):
+            if r is not None:
+                rewards.append(r)
+                reward_uids.append(r_uid)
+        rewards = np.array
+        self.update_scores(rewards, reward_uids, TaskType.LABELLED_ISSUE)
 
-        # bt.logging.debug(f"Rewards: {rewards_list}")
+        # update scores for miners who failed
+        # give min reward to miners who didn't respond
+        bad_miner_uids = [uid for uid in miner_uids if uid not in working_miner_uids]
+        penalty_tensor = torch.FloatTensor([NO_RESPONSE_MINIMUM] * len(bad_miner_uids)).to(self.device)
+        bt.logging.debug(f"Bad miner UIDs: {bad_miner_uids}")
+        self.update_scores(penalty_tensor, bad_miner_uids, TaskType.LABELLED_ISSUE)
 
-        # # reward the miners who succeeded
-        # rewards = []
-        # reward_uids = []
-        # for r, r_uid in zip(rewards_list, working_miner_uids):
-        #     if r is not None:
-        #         rewards.append(r)
-        #         reward_uids.append(r_uid)
-        # rewards = torch.FloatTensor(rewards).to(self.device)
-        # self.update_scores(rewards, reward_uids, TaskType.LABELLED_ISSUE)
-
-        # # update scores for miners who failed
-        # # give min reward to miners who didn't respond
-        # bad_miner_uids = [uid for uid in miner_uids if uid not in working_miner_uids]
-        # penalty_tensor = torch.FloatTensor([NO_RESPONSE_MINIMUM] * len(bad_miner_uids)).to(self.device)
-        # bt.logging.debug(f"Bad miner UIDs: {bad_miner_uids}")
-        # self.update_scores(penalty_tensor, bad_miner_uids, TaskType.LABELLED_ISSUE)
-
+        ######################################################################################
         # ================================================================
         # ========================= Open PR Task =========================
         # ================================================================
@@ -337,15 +273,11 @@ class Validator(BaseValidatorNeuron):
             # return
 
         # Take the response from the highest rated miner in self.scores
-        sorted_player_ids = sorted(range(len(self.scores)), key=lambda x: self.scores[x], reverse=True)
+        uid_to_response = {uid:response for uid, response in zip(working_miner_uids, finished_responses)}
+        working_scores = np.array([self.scores[uid] for uid in working_miner_uids])
 
-        best_response = None
-        best_response_uid = None
-        for miner_uid in sorted_player_ids:
-            response = next(((response, uid) for response, uid in zip(finished_responses, working_miner_uids) if uid == miner_uid), None)
-            if response:
-                best_response, best_response_uid = response
-                break
+        best_response_uid = working_miner_uids[np.argmax(working_scores)]
+        best_response = uid_to_response[best_response_uid]
 
         assert best_response is not None
 

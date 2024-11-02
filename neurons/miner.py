@@ -24,7 +24,7 @@ import bittensor as bt
 import taoception
 # import base miner class which takes care of most of the boilerplate
 from taoception.base.miner import BaseMinerNeuron
-from taoception.miner_utils import UnsolvedIssue, generate_code_patch
+from taoception.miner_utils import UnsolvedIssue, generate_code_patch, IssueSolution
 from taoception.s3_utils import download_repo_locally
 
 
@@ -58,19 +58,14 @@ class Miner(BaseMinerNeuron):
         The 'forward' function is a placeholder and should be overridden with logic that is appropriate for
         the miner's intended operation. This method demonstrates a basic transformation of input data.
         """
-        # if patch.txt exists return that
         try:
-            bt.logging.debug(f"Received a request with data: {synapse.s3_code_link}")
+            bt.logging.info(f"Received a request with data: {synapse.s3_code_link}")
             local_code_path = download_repo_locally(synapse.s3_code_link)
-            # synapse.patch = generate_code_patch(
-            #     UnsolvedIssue(desc=synapse.problem_statement, local_code_path=local_code_path)
-            # ).patch
+            synapse.patch = generate_code_patch(
+                UnsolvedIssue(desc=synapse.problem_statement, local_code_path=local_code_path)
+            ).patch
             
-            # with open("patch.txt", "w") as f:
-            #     f.write(synapse.patch)
-            with open("patch.txt", "r") as f:
-                synapse.patch = f.read()
-            bt.logging.error(f"Generated patch: {synapse.patch}")
+            bt.logging.debug(f"Generated patch: {synapse.patch}")
             return synapse
         except Exception as e:
             bt.logging.error(f"Error processing request: {e}")

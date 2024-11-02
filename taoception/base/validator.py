@@ -351,6 +351,7 @@ class BaseValidatorNeuron(BaseNeuron):
             min_len = min(len(self.hotkeys), len(self.scores))
             new_moving_average[:min_len] = self.scores[:min_len]
             self.scores = new_moving_average
+            self.pr_scores = copy.deepcopy(new_moving_average)
 
         # Update the hotkeys.
         self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
@@ -387,20 +388,22 @@ class BaseValidatorNeuron(BaseNeuron):
         # Update scores with rewards produced by this step.
         # shape: [ metagraph.n ]
         alpha: float = self.config.neuron.moving_average_alpha
-        if task_type == TaskType.LABELLED_ISSUE:
-            scattered_rewards: torch.FloatTensor = self.scores.to(self.device).scatter(
+
+        def calculate_scores(old_scores: torch.FloatTensor) -> torch.FloatTensor:
+            scattered_rewards: torch.FloatTensor = old_scores.to(self.device).scatter(
                 0, uids_tensor.to(self.device), rewards.to(self.device)
             ).to(self.device)
             bt.logging.debug(f"Scattered rewards: {rewards}")
-            self.scores: torch.FloatTensor = alpha * scattered_rewards + (1 - alpha) * self.scores.to(self.device)
-            bt.logging.debug(f"Updated moving avg scores: {self.scores}")
-        elif task_type == TaskType.OPEN_ISSUE:
-            scattered_rewards: torch.FloatTensor = self.pr_scores.to(self.device).scatter(
-                0, uids_tensor.to(self.device), rewards.to(self.device)
-            ).to(self.device)
-            bt.logging.debug(f"Scattered rewards: {rewards}")
-            self.pr_scores: torch.FloatTensor = alpha * scattered_rewards + (1 - alpha) * self.pr_scores.to(self.device)
-            bt.logging.debug(f"Updated moving avg scores: {self.pr_scores}")
+
+            scores = alpha * scattered_rewards + (1 - alpha) * old_scores.to(self.device)
+            bt.logging.debug(f"New moving avg scores: {scores}")
+            return scores
+
+        if task_type == TaskType.OPEN_ISSUE:
+            self.pr_scores = calculate_scores(self.pr_scores)
+        elif task_type == TaskType.LABELLED_ISSUE:
+            self.scores = calculate_scores(self.scores)
+
 
     def save_state(self):
         """Saves the state of the validator to a file."""
