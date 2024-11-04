@@ -1,0 +1,28 @@
+name: Integration Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build base image
+        run: docker build --target base -t taoception-base .
+
+      - name: Build and run integration tests
+        run: |
+          docker build --target integration-test -t taoception-integration .
+          docker run --rm taoception-integration
