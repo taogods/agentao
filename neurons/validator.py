@@ -31,7 +31,7 @@ import typing
 from aiohttp import BasicAuth, ClientSession
 from github.PullRequest import PullRequest
 from sweagent.environment.swe_env import EnvironmentArguments, SWEEnv
-from typing import Final, Optional
+from typing import Final, List, Optional
 
 from neurons.classes import LabelledIssueTask, OpenIssueTask, PendingRewards
 # import base validator class which takes care of most of the boilerplate
@@ -46,6 +46,7 @@ ISSUES_DATA_ENDPOINT: Final[str] = "https://gh-issue-pull.onrender.com/task"
 OPEN_ISSUE_ENDPOINT: Final[str] = "https://gh-issue-pull.onrender.com/open_issue"
 PENDING_REWARDS_ENDPOINT: Final[str] = "https://gh-issue-pull.onrender.com/pending_rewards"
 REGISTER_PR_ENDPOINT: Final[str] = "https://gh-issue-pull.onrender.com/register_pr"
+UPLOAD_ISSUE_ENDPOINT: Final[str] = "https://gh-issue-pull.onrender.com/upload_issue"
 DOCKER_CACHE_LEVEL: str = "instance"
 
 def generate_random_string(length: int) -> str:
@@ -78,6 +79,43 @@ class Validator(BaseValidatorNeuron):
             compare_and_score(challenge.patch, response)
             for response in responses
         ])
+    
+    async def upload_closed_issue(
+        self, 
+        issue: LabelledIssueTask, 
+        response_patches: List[str],
+        response_scores: List[float],
+        miner_hotkeys: List[str],
+    ) -> None:
+        """
+        Upload the closed issue to the data endpoint.
+        """
+        keypair = self.dendrite.keypair
+        hotkey = keypair.ss58_address
+        signature = f"0x{keypair.sign(hotkey).hex()}"
+        try:
+            async with ClientSession() as session:
+                # TODO: Add how long it takes to upload the issue
+                payload = [{
+                    "problem_statement": issue.problem_statement,
+                    "solution_patch": response_patch,
+                    "score": response_score,
+                    "miner_hotkey": miner_hotkey,
+                } for 
+                    response_patch, 
+                    response_score, 
+                    miner_hotkey 
+                    in zip(response_patches, response_scores, miner_hotkeys)
+                ]
+                async with session.post(
+                    url=UPLOAD_ISSUE_ENDPOINT, 
+                    auth=BasicAuth(hotkey, signature),
+                    json=payload,
+                ) as response:
+                    response.raise_for_status()
+                    _result = await response.json()
+        except Exception as e:
+            bt.logging.error(f"Error uploading closed issue: {e}")
     
     def open_pr(self, patch: str, open_issue: OpenIssueTask) -> Optional[PullRequest]:
         """
@@ -203,6 +241,17 @@ class Validator(BaseValidatorNeuron):
                 rewards.append(r)
                 reward_uids.append(r_uid)
         self.update_scores(np.array(rewards), reward_uids, TaskType.LABELLED_ISSUE)
+
+        # Upload the closed issue to the data endpoint
+        try:
+            await self.upload_closed_issue(
+                code_challenge, 
+                finished_responses, 
+                rewards_list,
+                [self.metagraph.hotkeys[uid] for uid in working_miner_uids],
+            )
+        except Exception as e:
+            bt.logging.error(f"Error uploading closed issue: {e}")
 
         # update scores for miners who failed
         # give min reward to miners who didn't respond
