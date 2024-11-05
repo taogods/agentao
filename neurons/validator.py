@@ -42,10 +42,10 @@ from taoception.protocol import CodingTask
 from taoception.utils.uids import check_uid_availability
 
 NO_RESPONSE_MINIMUM: float = 0.005
-ISSUES_DATA_ENDPOINT: Final[str] = "https://forty-geese-watch.loca.lt/task"
-OPEN_ISSUE_ENDPOINT: Final[str] = "https://forty-geese-watch.loca.lt/open_issue"
-PENDING_REWARDS_ENDPOINT: Final[str] = "https://forty-geese-watch.loca.lt/pending_rewards"
-REGISTER_PR_ENDPOINT: Final[str] = "https://forty-geese-watch.loca.lt/register_pr"
+ISSUES_DATA_ENDPOINT: Final[str] = "https://gh-issue-pull.onrender.com/task"
+OPEN_ISSUE_ENDPOINT: Final[str] = "https://gh-issue-pull.onrender.com/open_issue"
+PENDING_REWARDS_ENDPOINT: Final[str] = "https://gh-issue-pull.onrender.com/pending_rewards"
+REGISTER_PR_ENDPOINT: Final[str] = "https://gh-issue-pull.onrender.com/register_pr"
 DOCKER_CACHE_LEVEL: str = "instance"
 
 def generate_random_string(length: int) -> str:
