@@ -230,5 +230,5 @@ if __name__ == "__main__":
 
     with Miner(**vars(parse_args())) as miner:
         while True:
-            bt.logging.info(f"Miner running... {time.time()}")
+            # bt.logging.info(f"Miner running... {time.time()}")
             time.sleep(5)
