@@ -88,8 +88,32 @@ Then, install the SWE-Agent submodule:
 git submodule update --init --recursive
 ```
 
-Then, make sure you have Docker running. If on macOS, you can start the Docker Desktop application. If Ubuntu (TODO).
+Then, make sure you have Docker running. If on macOS, you can start the Docker Desktop application. 
+If on Ubuntu, you can install it by running the following:
+```sh
 
+sudo apt-get -y update && sudo apt-get -y install \
+    ca-certificates \
+    curl \
+    gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt-get -y update
+sudo apt-get -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+sudo usermod -aG docker $USER
+newgrp docker
+sudo systemctl enable --now docker  # Start docker daemon on system startup
+docker run hello-world  # test
+```
+Then, pull the Docker image by running:
+```sh
+docker pull sweagent/swe-agent:latest
+```
 From there, paste the following into `SWE-Agent/keys.cfg`:
 ```txt
 ANTHROPIC_API_KEY: <your Anthropic API key>
