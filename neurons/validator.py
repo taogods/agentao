@@ -153,43 +153,44 @@ class Validator(BaseValidatorNeuron):
         except Exception as e:
             bt.logging.error(f"Error opening PR: {e}")
             return None
+        
+    async def pending_rewards(self, miner_uids: List[int]) -> None:
+        try:
+            async with ClientSession() as session:
+                async with session.get(PENDING_REWARDS_ENDPOINT) as response:
+                    response.raise_for_status()
+                    pending_rewards = [
+                        PendingRewards.model_validate(reward) 
+                        for reward in response.json()
+                    ]
+                    if pending_rewards == []:
+                        return
 
-    async def forward(self):
-        """
-        Validator forward pass. Consists of:
-        - Generating the query
-        - Querying the miners
-        - Getting the responses
-        - Rewarding the miners
-        - Updating the scores
-        """
-        # get all the miner UIDs
-        miner_uids = [
-            uid for uid in range(len(self.metagraph.S))
-            if check_uid_availability(self.metagraph, uid, self.config.neuron.vpermit_tao_limit)
-        ]
-        if len(miner_uids) == 0:
-            bt.logging.info("No miners available to query.")
+                    # Give weights to the miners who opened PRs that got accepted
+                    rewards = np.ones_like(len(pending_rewards))
+                    uids = [reward.uid for reward in pending_rewards]
+                    self.update_scores(rewards, uids, TaskType.OPEN_ISSUE)
+
+                    # Set score to 0 for miners who don't have open PR
+                    bad_miner_uids = [uid for uid in miner_uids if uid not in uids]
+                    penalty_tensor = np.zeros_like(bad_miner_uids)
+                    self.update_scores(penalty_tensor, bad_miner_uids, TaskType.OPEN_ISSUE) 
+        except Exception as e:
+            bt.logging.error(f"Error fetching pending rewards: {e}")
             return
-        
-        bt.logging.info(f"Miner UIDs: {miner_uids}")
-        
-        # The dendrite client queries the network.
-        axons = [self.metagraph.axons[uid] for uid in miner_uids]
 
-        # =============================================================
-        # ======================== Coding Task ========================
-        # =============================================================
-        # Open issue
+    async def closed_issue(self, miner_uids: List[int]) -> None:
         try:
             response = requests.get(ISSUES_DATA_ENDPOINT).json()
             code_challenge: LabelledIssueTask = LabelledIssueTask.model_validate(response)
         except Exception as e:
             bt.logging.error(f"Error fetching issue from data endpoint: {e}. Skipping forward pass")
-            # TODO: How should weights be assigned in this case?
             return
 
         bt.logging.debug(f"Received response from data endpoint: {response.keys()}")
+
+        # The dendrite client queries the network.
+        axons = [self.metagraph.axons[uid] for uid in miner_uids]
 
         responses: typing.List[CodingTask] = await self.dendrite(
             axons=axons,
@@ -198,8 +199,6 @@ class Validator(BaseValidatorNeuron):
                 s3_code_link=code_challenge.s3_repo_url,
                 patch=None,
             ),
-            # All responses have the deserialize function called on them before returning.
-            # You are encouraged to define your own deserialization function.
             deserialize=False,
             timeout=6000, # TODO: need a better timeout method
         )
@@ -232,13 +231,11 @@ class Validator(BaseValidatorNeuron):
         bt.logging.debug(f"Rewards: {rewards_list}")
 
         # reward the miners who succeeded
-        rewards = []
-        reward_uids = []
-        for r, r_uid in zip(rewards_list, working_miner_uids):
-            if r is not None:
-                rewards.append(r)
-                reward_uids.append(r_uid)
-        self.update_scores(np.array(rewards), reward_uids, TaskType.LABELLED_ISSUE)
+        self.update_scores(
+            rewards_list, 
+            working_miner_uids, 
+            TaskType.LABELLED_ISSUE
+        )
 
         # Upload the closed issue to the data endpoint
         try:
@@ -258,18 +255,56 @@ class Validator(BaseValidatorNeuron):
         bt.logging.debug(f"Bad miner UIDs: {bad_miner_uids}")
         self.update_scores(penalty_tensor, bad_miner_uids, TaskType.LABELLED_ISSUE)
 
-        ######################################################################################
+    async def forward(self):
+        """
+        Validator forward pass. Consists of:
+        - Generating the query
+        - Querying the miners
+        - Getting the responses
+        - Rewarding the miners
+        - Updating the scores
+        """
+        # get all the miner UIDs
+        miner_uids = [
+            uid for uid in range(len(self.metagraph.S))
+            if check_uid_availability(self.metagraph, uid, self.config.neuron.vpermit_tao_limit)
+        ]
+        if len(miner_uids) == 0:
+            bt.logging.info("No miners available to query.")
+            return
+        
+        bt.logging.info(f"Miner UIDs: {miner_uids}")
+        
+        # The dendrite client queries the network.
+        axons = [self.metagraph.axons[uid] for uid in miner_uids]
+
+        # ================================================================
+        # ======================= Pending Rewards ========================
+        # ================================================================
+        # This section rewards miners who have opened PRs that have been 
+        # accepted.
+
+        self.pending_rewards(miner_uids)
+
+        # =============================================================
+        # ======================== Coding Task ========================
+        # =============================================================
+        # This section contains the logic for the closed issues loop
+
+        self.closed_issue(miner_uids)
+
         # ================================================================
         # ========================= Open PR Task =========================
         # ================================================================
+        # This sections contains the logic for the open issues loop
+
+        if self.step < 50: return # Build up weights first
 
         # ping for open issue challenges
         # Generate a coding problem for the miners to solve.
         try:
-            response = requests.get(OPEN_ISSUE_ENDPOINT)
-            print("querying", OPEN_ISSUE_ENDPOINT)
-            print("response is ", response.json())
-            code_challenge: OpenIssueTask = OpenIssueTask.model_validate(response.json())
+            response = requests.get(OPEN_ISSUE_ENDPOINT).json()
+            code_challenge: OpenIssueTask = OpenIssueTask.model_validate(response)
         except requests.exceptions.HTTPError as error:
             bt.logging.error(f"Error fetching issue from data endpoint: {error}. Skipping forward pass")
             return
@@ -277,7 +312,7 @@ class Validator(BaseValidatorNeuron):
             bt.logging.error(f"Error fetching issue from data endpoint: {e}. Skipping forward pass")
             return
         
-        bt.logging.debug(f"Received response from data endpoint: {response.json().keys()}")
+        bt.logging.debug(f"Received response from data endpoint: {response.keys()}")
 
         # Rate them and select the highest rated one that is above a threshold score
         responses = await self.dendrite(
@@ -307,10 +342,13 @@ class Validator(BaseValidatorNeuron):
 
         if len(working_miner_uids) == 0:
             bt.logging.info("No miners responded")
-            # return
+            return
 
         # Take the response from the highest rated miner in self.scores
-        uid_to_response = {uid:response for uid, response in zip(working_miner_uids, finished_responses)}
+        uid_to_response = {uid:response 
+                           for uid, response 
+                           in zip(working_miner_uids, finished_responses)
+                        }
         working_scores = np.array([self.scores[uid] for uid in working_miner_uids])
 
         best_response_uid = working_miner_uids[np.argmax(working_scores)]
@@ -318,10 +356,10 @@ class Validator(BaseValidatorNeuron):
 
         assert best_response is not None
 
-        # ===========  If its good, open a PR with the patch
-        # if self.scores[best_response_uid] < 0.9:
-        #     bt.logging.info("No good PRs found")
-        #     return
+        # If its good, open a PR with the patch
+        if self.scores[best_response_uid] < 0.9:
+            bt.logging.info("No good PRs found")
+            return
 
         # open a PR with the patch
         pr = self.open_pr(best_response, code_challenge)
@@ -347,23 +385,6 @@ class Validator(BaseValidatorNeuron):
             except Exception as e:
                 bt.logging.error(f"Error opening PR: {e}")
                 # TODO: Handle error casez
-
-        # ============ Get all the accepted PR's that you have not yet rewarded. For each one
-        # reward the miner who opened the PR by giving them weight on self.open_pr_weight
-        response = requests.get(PENDING_REWARDS_ENDPOINT)
-        pending_rewards = [PendingRewards.model_validate(reward) for reward in response.json()]
-        if pending_rewards == []:
-            return
-
-        # Give weights to the miners who opened PRs that got accepted
-        rewards = np.ones_like(len(pending_rewards))
-        uids = [reward.uid for reward in pending_rewards]
-        self.update_scores(rewards, uids, TaskType.OPEN_ISSUE)
-
-        # Set score to 0 for miners who don't have open PR
-        bad_miner_uids = [uid for uid in miner_uids if uid not in uids]
-        penalty_tensor = np.zeros_like(bad_miner_uids)
-        self.update_scores(penalty_tensor, bad_miner_uids, TaskType.OPEN_ISSUE)
 
 
 # The main function parses the configuration and runs the validator.
