@@ -201,7 +201,7 @@ class Validator(BaseValidatorNeuron):
                 patch=None,
             ),
             deserialize=False,
-            timeout=timedelta(minutes=10).total_seconds(), # TODO: need a better timeout method
+            timeout=timedelta(minutes=30).total_seconds(), # TODO: need a better timeout method
         )
 
         bt.logging.info(f"Received patches: {[r.patch for r in responses]}")
@@ -324,7 +324,7 @@ class Validator(BaseValidatorNeuron):
                 patch=None,
             ),
             deserialize=False,
-            timeout=timedelta(minutes=10).total_seconds(),
+            timeout=timedelta(minutes=30).total_seconds(),
         )
 
         working_miner_uids = []
