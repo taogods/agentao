@@ -182,9 +182,7 @@ class Validator(BaseValidatorNeuron):
         # =============================================================
         # Open issue
         try:
-            with open("neurons/test_issue.json", "r") as f:
-                response = json.load(f)
-            # response = requests.get(ISSUES_DATA_ENDPOINT).json()
+            response = requests.get(ISSUES_DATA_ENDPOINT).json()
             code_challenge: LabelledIssueTask = LabelledIssueTask.model_validate(response)
         except Exception as e:
             bt.logging.error(f"Error fetching issue from data endpoint: {e}. Skipping forward pass")
@@ -206,7 +204,7 @@ class Validator(BaseValidatorNeuron):
             timeout=6000, # TODO: need a better timeout method
         )
 
-        bt.logging.info(f"Received responses: {responses}")
+        bt.logging.info(f"Received patches: {[r.patch for r in responses]}")
 
         working_miner_uids = []
         finished_responses = []

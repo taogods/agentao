@@ -1,14 +1,11 @@
-import bittensor as bt
 import json
-import openai
 import os
-import sys
 from statistics import mean
 from typing import Dict, Final
 
-if os.getenv("OPENAI_API_KEY") is None:
-    print("Error: OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
-    sys.exit(1)
+import bittensor as bt
+import openai
+import sys
 
 # Todo: replace this with corcel impl
 OPENAI_CLIENT: Final[openai.Client] = openai.Client(api_key=os.getenv("OPENAI_API_KEY"))

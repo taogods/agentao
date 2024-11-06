@@ -11,3 +11,5 @@ ipdb
 swebench
 boto3
 openai>=1.0.0
+pygithub
+sweagent
