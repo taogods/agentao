@@ -1,6 +1,7 @@
 # The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
 # Copyright © 2023 Taoception
+from datetime import timedelta
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
@@ -200,7 +201,7 @@ class Validator(BaseValidatorNeuron):
                 patch=None,
             ),
             deserialize=False,
-            timeout=6000, # TODO: need a better timeout method
+            timeout=timedelta(minutes=10).total_seconds(), # TODO: need a better timeout method
         )
 
         bt.logging.info(f"Received patches: {[r.patch for r in responses]}")
@@ -323,7 +324,7 @@ class Validator(BaseValidatorNeuron):
                 patch=None,
             ),
             deserialize=False,
-            timeout=600,
+            timeout=timedelta(minutes=10).total_seconds(),
         )
 
         working_miner_uids = []
