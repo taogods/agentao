@@ -114,10 +114,12 @@ Then, pull the Docker image by running:
 ```sh
 docker pull sweagent/swe-agent:latest
 ```
-From there, paste the following into `SWE-Agent/keys.cfg`:
-```txt
-ANTHROPIC_API_KEY: <your Anthropic API key>
+Then, set your model provider API key as an environment variable. One of:
+```shell
+ANTHROPIC_API_KEY
+OPENAI_API_KEY
 ```
+
 Then, run the miner script: 
 ```sh
 python neurons/miner.py --netuid 1 \ 

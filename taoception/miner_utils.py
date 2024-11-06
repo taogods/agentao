@@ -19,7 +19,7 @@ class UnsolvedIssue:
 class IssueSolution:
     patch: str
 
-def create_script_arguments(unsolved_issue: UnsolvedIssue) -> ScriptArguments:
+def create_script_arguments(model_name: str, unsolved_issue: UnsolvedIssue) -> ScriptArguments:
     return ScriptArguments(
         environment=EnvironmentArguments(
             image_name="sweagent/swe-agent:latest",
@@ -30,8 +30,7 @@ def create_script_arguments(unsolved_issue: UnsolvedIssue) -> ScriptArguments:
         skip_existing=False,
         agent=AgentArguments(
             model=ModelArguments(
-                # TODO(alex): Make model configurable
-                model_name="claude-sonnet-3.5",
+                model_name= model_name,
             ),
             config_file=Path("SWE-agent/config/default_from_url.yaml"),
         ),
@@ -43,8 +42,8 @@ def create_script_arguments(unsolved_issue: UnsolvedIssue) -> ScriptArguments:
         print_config=True,
     )
 
-def generate_code_patch(unsolved_issue: UnsolvedIssue) -> IssueSolution:
-    script_arguments = create_script_arguments(unsolved_issue)
+def generate_code_patch(model_name: str, unsolved_issue: UnsolvedIssue) -> IssueSolution:
+    script_arguments = create_script_arguments(model_name, unsolved_issue)
 
     env = SWEEnv(script_arguments.environment)
     observation, info = env.reset(0)

@@ -1,6 +1,8 @@
 # The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
 # Copyright © 2023 Taoception
+import argparse
+import os
 from pathlib import Path
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
@@ -38,7 +40,8 @@ class Miner(BaseMinerNeuron):
     This class provides reasonable default behavior for a miner such as blacklisting unrecognized hotkeys, prioritizing requests based on stake, and forwarding requests to the forward function. If you need to define custom
     """
 
-    def __init__(self, config=None):
+    def __init__(self, config=None, model_name: str = "claude-sonnet-3.5"):
+        self.model_name = model_name
         super(Miner, self).__init__(config=config)
 
         # TODO(developer): Anything specific to your use case you can do here
@@ -68,7 +71,7 @@ class Miner(BaseMinerNeuron):
 
             local_code_path = download_repo_locally(synapse.s3_code_link, jobs_dir)
             synapse.patch = generate_code_patch(
-                UnsolvedIssue(desc=synapse.problem_statement, local_code_path=local_code_path)
+                self.model_name, UnsolvedIssue(desc=synapse.problem_statement, local_code_path=local_code_path)
             ).patch
 
             bt.logging.debug(f"Generated patch: {synapse.patch}")
@@ -175,9 +178,57 @@ class Miner(BaseMinerNeuron):
         return priority
 
 
+AVAILABLE_MODELS: typing.Final[typing.List[str]] = [
+    "gpt4",
+    "gpt4-legacy",
+    "gpt4-0125",
+    "gpt3-0125",
+    "gpt4-turbo",
+    "gpt4o",
+    "gpt-4o-mini",
+    "gpt4omini",
+    "o1",
+    "o1-mini",
+    "claude-2",
+    "claude-opus",
+    "claude-sonnet",
+    "claude-haiku",
+    "claude-sonnet-3.5",
+]
+
+MODEL_CRED_ENVARS: typing.Final[typing.List[str]] = [
+    "GITHUB_TOKEN",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "TOGETHER_API_KEY",
+    "AZURE_OPENAI_API_KEY",
+    "AZURE_OPENAI_ENDPOINT",
+    "AZURE_OPENAI_DEPLOYMENT",
+    "AZURE_OPENAI_API_VERSION",
+    "OPENAI_API_BASE_URL",
+    "GROQ_API_KEY",
+]
+
+def create_keys_cfg() -> None:
+    """Creates keys.cfg file from envars"""
+    buffer = [f"{key}: '{os.environ[key]}'" for key in MODEL_CRED_ENVARS if key in os.environ]
+
+    with open("SWE-agent/keys.cfg", "w") as f:
+        f.write("\n".join(buffer) + "\n")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model-name", choices=AVAILABLE_MODELS, default="claude-sonnet-3.5")
+    args, _ = parser.parse_known_args()
+    return args
+
+
 # This is the main function, which runs the miner.
 if __name__ == "__main__":
-    with Miner() as miner:
+    create_keys_cfg()
+
+    with Miner(**vars(parse_args())) as miner:
         while True:
             bt.logging.info(f"Miner running... {time.time()}")
             time.sleep(5)
