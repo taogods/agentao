@@ -72,81 +72,60 @@ Goal: Integrated marketplace for the development of Cerebro-accepted issues
 - [ ] Create app for issue registration, open to public
 - [ ] Full release of open issue flow
 
-## Running
-TODO: Clean up instructions below for prod:
-- `miner.py` and `validator.py` script args below should be updated to run on prod subnet.
+## Running a Miner / Validator
+
+### Prerequisites:
+First, [install Docker](https://docs.docker.com/engine/install/) and make sure you can run `docker hello-world` succesfully.
+
+Then, set up your Python environment (we recommend using 3.11):
+```sh
+python3.11 -m venv venv
+source venv/bin/activate
+```
+
+Then, run the following setup script from repo root:
+```sh
+pushd SWE-agent > /dev/null
+
+# Clone and install SWE-agent
+git submodule update --init --recursive
+python3 -m pip install --editable .
+
+# Pull SWE-agent Docker container, required to run SWE-agent
+docker pull sweagent/swe-agent:latest
+
+popd > /dev/null
+
+# Install the subnet repo
+python3 -m pip install --editable .
+```
 
 ### Running a miner
-First, set up your Python environment:
-```sh
-python3 -m venv venv
-source venv/bin/activate
-python3 -m pip install -r requirements.txt
-```
-Then, install the SWE-Agent submodule:
-```sh
-git submodule update --init --recursive
-```
-
-Then, make sure you have Docker running. If on macOS, you can start the Docker Desktop application. 
-If on Ubuntu, you can install it by running the following:
-```sh
-
-sudo apt-get -y update && sudo apt-get -y install \
-    ca-certificates \
-    curl \
-    gnupg
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-sudo apt-get -y update
-sudo apt-get -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-sudo usermod -aG docker $USER
-newgrp docker
-sudo systemctl enable --now docker  # Start docker daemon on system startup
-docker run hello-world  # test
-```
-Then, pull the Docker image by running:
-```sh
-docker pull sweagent/swe-agent:latest
-```
-Then, set your model provider API key as an environment variable. One of:
+After following the instructions above, set the required envars. Either one of these can be given:
 ```shell
-ANTHROPIC_API_KEY
+ANTHROPIC_API_KEY  
 OPENAI_API_KEY
 ```
 
 Then, run the miner script: 
 ```sh
 python neurons/miner.py --netuid 1 \ 
-    --subtensor.chain_endpoint ws://127.0.0.1:9946 \
     --wallet.name <wallet name> \
     --wallet.hotkey <hotkey name>
 ```
 
 ### Running a validator
-First, set up your Python environment:
+After following the instructions above, set the required envars:
 ```sh
-python3 -m venv venv
-source venv/bin/activate
-python3 -m pip install -r requirements.txt
-```
-Then, set the required envars:
-```sh
-export GITHUB_TOKEN=<your GitHub token>      # for creating PRs
-export OPENAI_API_KEY=<your OpenAI API key>  # for evaluating miner submissions
+GITHUB_TOKEN      # for creating PRs
+OPENAI_API_KEY    # for evaluating miner submissions
 ```
 
 Then, run the validator script:
 ```sh
 python neurons/validator.py --netuid 1 \
-    --subtensor.chain_endpoint ws://127.0.0.1:9946 \
-    --wallet.name validator \
-    --wallet.hotkey default
+    --wallet.name <wallet name> \
+    --wallet.hotkey <hotkey name>
 ```
 
 ## License

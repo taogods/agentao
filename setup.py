@@ -47,7 +47,6 @@ def read_requirements(path):
         return processed_requirements
 
 
-requirements = read_requirements("requirements.txt")
 here = path.abspath(path.dirname(__file__))
 
 with open(path.join(here, "README.md"), encoding="utf-8") as f:
@@ -75,7 +74,21 @@ setup(
     author_email="",  # TODO(developer): Change this value to your module subnet author email.
     license="MIT",
     python_requires=">=3.8",
-    install_requires=requirements,
+    install_requires=[
+        "bittensor==7.3.1",
+        "starlette>=0.30.0",
+        "pydantic>=2",
+        "rich>=13",
+        "pytest>=8",
+        "numpy>=1",
+        "setuptools>=68",
+        "ipython",
+        "ipdb",
+        "swebench",
+        "boto3",
+        "openai>=1.0.0",
+        "pygithub",
+    ],
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
