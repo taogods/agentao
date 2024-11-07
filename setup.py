@@ -88,6 +88,7 @@ setup(
         "boto3",
         "openai>=1.0.0",
         "pygithub",
+        "pytz",
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",

@@ -1,59 +1,62 @@
 # The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
 # Copyright © 2023 Taoception
+import logging
+import os
+import subprocess
 from datetime import timedelta
+from typing import List, Optional, Union, Tuple
+
+import time
+from github.PullRequest import PullRequest
+from sweagent.environment.swe_env import EnvironmentArguments, SWEEnv
+
+import numpy as np
+import requests
+from aiohttp import BasicAuth, ClientSession
+from neurons.classes import PendingRewards, LabelledIssueTask, OpenIssueTask
+from neurons.constants import DATA_ENDPOINT_BY_TASK, UPLOAD_ISSUE_ENDPOINT, REGISTER_PR_ENDPOINT, \
+    PENDING_REWARDS_ENDPOINT, NO_MINER_RESPONSE_SCORE
+from taoception.base.validator import BaseValidatorNeuron, TaskType
+from taoception.code_compare import compare_and_score
+from taoception.protocol import CodingTask
+from taoception.utils.uids import check_uid_availability
+import pytz
+from datetime import datetime
+
+
+# Custom formatter to include line number and PST time
+class PSTFormatter(logging.Formatter):
+    def formatTime(self, record, datefmt=None):
+        pst = pytz.timezone("America/Los_Angeles")
+        ct = datetime.fromtimestamp(record.created, pst)
+        return ct.strftime("%Y-%m-%d %H:%M:%S")
+
+    def format(self, record):
+        # Pad the level name to 7 characters
+        record.levelname = f"{record.levelname:<5}"
+        return super().format(record)
+
+logger = logging.getLogger()  # Get the root logger
+logger.handlers.clear()  # Remove any existing handlers
+
+# Create and set the handler with the custom formatter
+handler = logging.StreamHandler()
+handler.setFormatter(PSTFormatter('%(asctime)s - %(filename)s:%(lineno)d [%(levelname)s] %(message)s'))
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
 # the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
 # and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
 # The above copyright notice and this permission notice shall be included in all copies or substantial portions of
 # the Software.
-
 # THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
 # THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
 # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
-
-
-import bittensor as bt
-import json
-import numpy as np
-import os
-import random
-import requests
-import string
-import subprocess
-import time
-import typing
-# Bittensor
-from aiohttp import BasicAuth, ClientSession
-from github.PullRequest import PullRequest
-from sweagent.environment.swe_env import EnvironmentArguments, SWEEnv
-from typing import Final, List, Optional
-
-from neurons.classes import LabelledIssueTask, OpenIssueTask, PendingRewards
-# import base validator class which takes care of most of the boilerplate
-from taoception.base.validator import BaseValidatorNeuron, TaskType
-# Bittensor Validator Template:
-from taoception.code_compare import compare_and_score
-from taoception.protocol import CodingTask
-from taoception.utils.uids import check_uid_availability
-
-NO_RESPONSE_MINIMUM: float = 0.005
-ISSUES_DATA_ENDPOINT: Final[str] = "https://gh-issue-pull.onrender.com/task"
-OPEN_ISSUE_ENDPOINT: Final[str] = "https://gh-issue-pull.onrender.com/open_issue"
-PENDING_REWARDS_ENDPOINT: Final[str] = "https://gh-issue-pull.onrender.com/pending_rewards"
-REGISTER_PR_ENDPOINT: Final[str] = "https://gh-issue-pull.onrender.com/register_pr"
-UPLOAD_ISSUE_ENDPOINT: Final[str] = "https://gh-issue-pull.onrender.com/upload_issue"
-DOCKER_CACHE_LEVEL: str = "instance"
-
-def generate_random_string(length: int) -> str:
-    characters = string.ascii_letters + string.digits
-    random_string = ''.join(random.choices(characters, k=length))
-    return random_string
 
 class Validator(BaseValidatorNeuron):
     """
@@ -67,12 +70,13 @@ class Validator(BaseValidatorNeuron):
     def __init__(self, config=None):
         super(Validator, self).__init__(config=config)
 
-        bt.logging.info("load_state()")
+        logger.info("load_state()")
         self.load_state()
 
         # TODO(developer): Anything specific to your use case you can do here
 
-    async def calculate_rewards(self, challenge: LabelledIssueTask, responses: typing.List[str]) -> np.ndarray:
+    @staticmethod
+    async def calculate_rewards(challenge: LabelledIssueTask, responses: List[str]) -> np.ndarray:
         """
         Validate the responses from the miners. This function should score the responses and return a list of rewards for each miner.
         """
@@ -85,7 +89,7 @@ class Validator(BaseValidatorNeuron):
         self, 
         issue: LabelledIssueTask, 
         response_patches: List[str],
-        response_scores: List[float],
+        response_scores: np.ndarray,
         miner_hotkeys: List[str],
     ) -> None:
         """
@@ -115,15 +119,16 @@ class Validator(BaseValidatorNeuron):
                 ) as response:
                     response.raise_for_status()
                     _result = await response.json()
-        except Exception as e:
-            bt.logging.error(f"Error uploading closed issue: {e}")
-    
-    def open_pr(self, patch: str, open_issue: OpenIssueTask) -> Optional[PullRequest]:
+        except Exception:
+            logger.exception("Error uploading closed issue")
+
+    @staticmethod
+    async def open_pr(patch: str, open_issue: OpenIssueTask, keypair, miner_hotkey) -> Optional[PullRequest]:
         """
         Open a PR with the given patch and open issue task.
         """
         try:
-            bt.logging.info(f"{open_issue.issue_url} {open_issue.base_commit}")
+            logger.info(f"{open_issue.issue_url} {open_issue.base_commit}")
             script_arguments = EnvironmentArguments(
                 image_name="sweagent/swe-agent:latest",
                 data_path=open_issue.issue_url,
@@ -148,23 +153,52 @@ class Validator(BaseValidatorNeuron):
                 error_msg="Failed to apply test patch correctly",
             )
             os.remove(path_to_patch)
-            bt.logging.info("Opening PR")
+            logger.info("Opening PR")
             pr = env.open_pr(trajectory="", _dry_run=False)
-            return pr
-        except Exception as e:
-            bt.logging.error(f"Error opening PR: {e}")
-            return None
+            if not pr:
+                logger.error(f"PR is None")
+                return
+        except Exception:
+            logger.exception("Error opening PR")
+            return
+
+        try:
+            hotkey = keypair.ss58_address
+            signature = f"0x{keypair.sign(hotkey).hex()}"
+            async with ClientSession() as session:
+                payload = {
+                    "pr_url": pr.html_url,
+                    "miner_hotkey": miner_hotkey
+                }
+                async with session.post(
+                    url=REGISTER_PR_ENDPOINT,
+                    auth=BasicAuth(hotkey, signature),
+                    json=payload,
+                ) as response:
+                    response.raise_for_status()
+                    json_response = await response.json()
+                    logger.info(f"response received: {json_response}")
+        except Exception:
+            logger.exception("Error registering PR")
+            # TODO: Handle error casez
         
-    async def pending_rewards(self, miner_uids: List[int]) -> None:
+    async def assign_pending_rewards_scores(self, miner_uids: List[int]) -> None:
+        logger.info(f"Entering pending rewards assignment. Making request to {PENDING_REWARDS_ENDPOINT} ...")
         try:
             async with ClientSession() as session:
-                async with session.get(PENDING_REWARDS_ENDPOINT) as response:
-                    response.raise_for_status()
+                async with session.get(PENDING_REWARDS_ENDPOINT) as raw_response:
+                    logger.info(f"Received response from {PENDING_REWARDS_ENDPOINT}...")
+
+                    raw_response.raise_for_status()
+                    response = await raw_response.json()
+                    logger.info(f"Parsed response from {PENDING_REWARDS_ENDPOINT}")
+
                     pending_rewards = [
                         PendingRewards.model_validate(reward) 
-                        for reward in response.json()
+                        for reward in response
                     ]
-                    if pending_rewards == []:
+                    if not pending_rewards:
+                        logger.info("No pending rewards available, skipping assignment...")
                         return
 
                     # Give weights to the miners who opened PRs that got accepted
@@ -175,86 +209,12 @@ class Validator(BaseValidatorNeuron):
                     # Set score to 0 for miners who don't have open PR
                     bad_miner_uids = [uid for uid in miner_uids if uid not in uids]
                     penalty_tensor = np.zeros_like(bad_miner_uids)
-                    self.update_scores(penalty_tensor, bad_miner_uids, TaskType.OPEN_ISSUE) 
-        except Exception as e:
-            bt.logging.error(f"Error fetching pending rewards: {e}")
+                    self.update_scores(penalty_tensor, bad_miner_uids, TaskType.OPEN_ISSUE)
+
+        except Exception:
+            logger.exception("Error fetching pending rewards")
             return
-
-    async def closed_issue(self, miner_uids: List[int]) -> None:
-        try:
-            response = requests.get(ISSUES_DATA_ENDPOINT).json()
-            code_challenge: LabelledIssueTask = LabelledIssueTask.model_validate(response)
-        except Exception as e:
-            bt.logging.error(f"Error fetching issue from data endpoint: {e}. Skipping forward pass")
-            return
-
-        bt.logging.debug(f"Received response from data endpoint: {response.keys()}")
-
-        # The dendrite client queries the network.
-        axons = [self.metagraph.axons[uid] for uid in miner_uids]
-
-        responses: typing.List[CodingTask] = await self.dendrite(
-            axons=axons,
-            synapse=CodingTask(
-                problem_statement=code_challenge.problem_statement,
-                s3_code_link=code_challenge.s3_repo_url,
-                patch=None,
-            ),
-            deserialize=False,
-            timeout=timedelta(minutes=30).total_seconds(), # TODO: need a better timeout method
-        )
-
-        bt.logging.info(f"Received patches: {[r.patch for r in responses]}")
-
-        working_miner_uids = []
-        finished_responses = []
-
-        for response in responses:
-            if not response:
-                bt.logging.info("No response from miner")
-            elif response.patch in [None, ""] or not response.axon or not response.axon.hotkey:
-                bt.logging.info("No patch from miner")
-            else:
-                uid = next(uid for uid, axon in zip(miner_uids, axons) if axon.hotkey == response.axon.hotkey)
-                working_miner_uids.append(uid)
-                finished_responses.append(response.patch)
-
-        if len(working_miner_uids) == 0:
-            bt.logging.info("No miners responded")
-            return
-
-        try:
-            rewards_list = await self.calculate_rewards(code_challenge, finished_responses)
-        except Exception as e:
-            bt.logging.error(f"Error calculating rewards: {e}")
-            return
-
-        bt.logging.debug(f"Rewards: {rewards_list}")
-
-        # reward the miners who succeeded
-        self.update_scores(
-            rewards_list, 
-            working_miner_uids, 
-            TaskType.LABELLED_ISSUE
-        )
-
-        # Upload the closed issue to the data endpoint
-        try:
-            await self.upload_closed_issue(
-                code_challenge, 
-                finished_responses, 
-                rewards_list,
-                [self.metagraph.hotkeys[uid] for uid in working_miner_uids],
-            )
-        except Exception as e:
-            bt.logging.error(f"Error uploading closed issue: {e}")
-
-        # update scores for miners who failed
-        # give min reward to miners who didn't respond
-        bad_miner_uids = [uid for uid in miner_uids if uid not in working_miner_uids]
-        penalty_tensor = np.array([NO_RESPONSE_MINIMUM] * len(bad_miner_uids))
-        bt.logging.debug(f"Bad miner UIDs: {bad_miner_uids}")
-        self.update_scores(penalty_tensor, bad_miner_uids, TaskType.LABELLED_ISSUE)
+        logger.info("Finished pending rewards assignment")
 
     async def forward(self):
         """
@@ -265,132 +225,162 @@ class Validator(BaseValidatorNeuron):
         - Rewarding the miners
         - Updating the scores
         """
-        # get all the miner UIDs
+        logger.debug("Starting forward pass...")
+
         miner_uids = [
             uid for uid in range(len(self.metagraph.S))
             if check_uid_availability(self.metagraph, uid, self.config.neuron.vpermit_tao_limit)
         ]
+        logger.info(f"Miner UIDs: {miner_uids}")
+
         if len(miner_uids) == 0:
-            bt.logging.info("No miners available to query.")
+            logger.info("No miners available to query. Exiting forward pass...")
             return
         
-        bt.logging.info(f"Miner UIDs: {miner_uids}")
-        
-        # The dendrite client queries the network.
         axons = [self.metagraph.axons[uid] for uid in miner_uids]
 
-        # ================================================================
-        # ======================= Pending Rewards ========================
-        # ================================================================
-        # This section rewards miners who have opened PRs that have been 
-        # accepted.
+        await self.assign_pending_rewards_scores(miner_uids)
 
-        self.pending_rewards(miner_uids)
+        # TODO: check if state is actually getting updated
+        task_types = [LabelledIssueTask] if self.step < 50 else [LabelledIssueTask, OpenIssueTask]
+        logger.info(f"Current step={self.step}, tasks that will be assigned are: {[t.__name__ for t in task_types]}...")
 
-        # =============================================================
-        # ======================== Coding Task ========================
-        # =============================================================
-        # This section contains the logic for the closed issues loop
+        code_challenge: Optional[Union[LabelledIssueTask, OpenIssueTask]] = None
+        for task_type in task_types:
+            try:
+                logger.info(f"Making request of type {task_type.__name__} to {DATA_ENDPOINT_BY_TASK[task_type]} ...")
+                response = requests.get(DATA_ENDPOINT_BY_TASK[task_type]).json()
 
-        self.closed_issue(miner_uids)
+                logger.info(f"Received response for request of type {task_type.__name__} to {DATA_ENDPOINT_BY_TASK[task_type]} . Parsing response...")
 
-        # ================================================================
-        # ========================= Open PR Task =========================
-        # ================================================================
-        # This sections contains the logic for the open issues loop
+                code_challenge = task_type.model_validate(response)
+                logger.info("Response parsed")
+            except Exception:
+                logger.exception("Error fetching issue from data endpoint. Exiting forward pass...")
+                return
 
-        if self.step < 50: return # Build up weights first
+            logger.info(f"Sending task to miners, S3 URL: {code_challenge.s3_repo_url}...")
+            responses: List[CodingTask] = await self.dendrite(
+                axons=axons,
+                synapse=CodingTask(
+                    problem_statement=code_challenge.problem_statement,
+                    s3_code_link=code_challenge.s3_repo_url,
+                    patch=None,
+                ),
+                deserialize=False,
+                timeout=timedelta(minutes=30).total_seconds(), # TODO: need a better timeout method
+            )
+            logger.info(f"Received task responses from miners: {[r.patch for r in responses]}")
 
-        # ping for open issue challenges
-        # Generate a coding problem for the miners to solve.
+            working_miner_uids: List[int] = []
+            finished_responses: List[str] = []
+
+            logger.info("Checking which received patches are valid...")
+            for response in responses:
+                if not response:
+                    logger.info(f"Miner with hotkey {response.axon.hotkey} did not give a response")
+                elif response.patch in [None, ""] or not response.axon or not response.axon.hotkey:
+                    logger.info(f"Miner with hotkey {response.axon.hotkey} gave a response object but no patch")
+                else:
+                    logger.info(f"Miner with hotkey {response.axon.hotkey} gave a valid response/patch")
+                    uid = next(uid for uid, axon in zip(miner_uids, axons) if axon.hotkey == response.axon.hotkey)
+                    working_miner_uids.append(uid)
+                    finished_responses.append(response.patch)
+
+            if len(working_miner_uids) == 0:
+                logger.info("No miners responded. Exiting forward pass...")
+                return
+
+            logger.info(f"Running task-specific handlers for task {task_type.__name__}")
+            if task_type == LabelledIssueTask:
+                await self.handle_labelled_issue_response(code_challenge, finished_responses, working_miner_uids)
+            elif task_type == OpenIssueTask:
+                await self.handle_open_issue_response(code_challenge, finished_responses, working_miner_uids)
+
+            # update scores for miners who failed
+            # give min reward to miners who didn't respond
+            bad_miner_uids = [uid for uid in miner_uids if uid not in working_miner_uids]
+            penalty_tensor = np.array([NO_MINER_RESPONSE_SCORE] * len(bad_miner_uids))
+            logger.info(f"Bad miner UIDs: {bad_miner_uids}")
+            self.update_scores(
+                penalty_tensor,
+                bad_miner_uids,
+                TaskType.LABELLED_ISSUE if task_type == LabelledIssueTask else TaskType.OPEN_ISSUE
+            )
+
+
+    async def handle_open_issue_response(
+        self, code_challenge: OpenIssueTask, finished_responses: List[str], working_miner_uids: List[int]
+    ) -> None:
+        best_patch, best_uid = get_best_submission(self.scores, working_miner_uids, finished_responses)
+        if best_patch is None or best_uid is None:
+            logger.error("best patch is None")
+            return
+        elif self.scores[best_uid] < 0.9:
+            logger.info("No good PRs found")
+            return
+
+        await Validator.open_pr(best_patch, code_challenge, self.dendrite.keypair, self.metagraph.hotkeys[best_uid])
+
+
+    async def handle_labelled_issue_response(
+        self, code_challenge: LabelledIssueTask, finished_responses: List[str], working_miner_uids: List[int]
+    ) -> None:
         try:
-            response = requests.get(OPEN_ISSUE_ENDPOINT).json()
-            code_challenge: OpenIssueTask = OpenIssueTask.model_validate(response)
-        except requests.exceptions.HTTPError as error:
-            bt.logging.error(f"Error fetching issue from data endpoint: {error}. Skipping forward pass")
+            rewards_list = await Validator.calculate_rewards(code_challenge, finished_responses)
+        except Exception:
+            logger.exception("Error calculating rewards")
             return
-        except Exception as e:
-            bt.logging.error(f"Error fetching issue from data endpoint: {e}. Skipping forward pass")
-            return
-        
-        bt.logging.debug(f"Received response from data endpoint: {response.keys()}")
 
-        # Rate them and select the highest rated one that is above a threshold score
-        responses = await self.dendrite(
-            axons=axons,
-            synapse=CodingTask(
-                problem_statement=code_challenge.problem_statement,
-                s3_code_link=code_challenge.s3_repo_url,
-                patch=None,
-            ),
-            deserialize=False,
-            timeout=timedelta(minutes=30).total_seconds(),
+        logger.info(f"Rewards: {rewards_list}")
+
+        # reward the miners who succeeded
+        self.update_scores(
+            rewards_list,
+            working_miner_uids,
+            TaskType.LABELLED_ISSUE
         )
 
-        working_miner_uids = []
-        finished_responses = []
+        # Upload the closed issue to the data endpoint
+        try:
+            await self.upload_closed_issue(
+                code_challenge,
+                finished_responses,
+                rewards_list,
+                [self.metagraph.hotkeys[uid] for uid in working_miner_uids],
+            )
+        except Exception:
+            logger.exception("Error uploading closed issue")
 
-        for response in responses:
-            if not response:
-                bt.logging.info("No response from miner")
-                continue
-            if response.patch in [None, ""] or not response.axon or not response.axon.hotkey:
-                continue
-            
-            uid = [uid for uid, axon in zip(miner_uids, axons) if axon.hotkey == response.axon.hotkey][0]
-            working_miner_uids.append(uid)
-            finished_responses.append(response.patch)
 
-        if len(working_miner_uids) == 0:
-            bt.logging.info("No miners responded")
-            return
+def get_best_submission(scores, working_miner_uids, finished_responses) -> Tuple[str, int]:
+    uid_to_response = dict(zip(working_miner_uids, finished_responses))
+    working_scores = np.array([scores[uid] for uid in working_miner_uids])
 
-        # Take the response from the highest rated miner in self.scores
-        uid_to_response = {uid:response 
-                           for uid, response 
-                           in zip(working_miner_uids, finished_responses)
-                        }
-        working_scores = np.array([self.scores[uid] for uid in working_miner_uids])
+    best_uid = working_miner_uids[np.argmax(working_scores)]
+    best_patch = uid_to_response[best_uid]
+    return best_patch, best_uid
 
-        best_response_uid = working_miner_uids[np.argmax(working_scores)]
-        best_response = uid_to_response[best_response_uid]
 
-        assert best_response is not None
-
-        # If its good, open a PR with the patch
-        if self.scores[best_response_uid] < 0.9:
-            bt.logging.info("No good PRs found")
-            return
-
-        # open a PR with the patch
-        pr = self.open_pr(best_response, code_challenge)
-
-        # Register PR with backend
-        if pr:
-            keypair = self.dendrite.keypair
-            hotkey = keypair.ss58_address
-            signature = f"0x{keypair.sign(hotkey).hex()}"
-            try:
-                async with ClientSession() as session:
-                    payload = {
-                        "pr_url": pr.html_url,
-                        "miner_hotkey": self.metagraph.hotkeys[best_response_uid]
-                    }
-                    async with session.post(
-                        url=REGISTER_PR_ENDPOINT, 
-                        auth=BasicAuth(hotkey, signature),
-                        json=payload,
-                    ) as response:
-                        response.raise_for_status()
-                        _result = await response.json()
-            except Exception as e:
-                bt.logging.error(f"Error opening PR: {e}")
-                # TODO: Handle error casez
+async def register_pr(pr, keypair, miner_hotkey):
+    hotkey = keypair.ss58_address
+    signature = f"0x{keypair.sign(hotkey).hex()}"
+    async with ClientSession() as session:
+        payload = {
+            "pr_url": pr.html_url,
+            "miner_hotkey": miner_hotkey
+        }
+        async with session.post(
+            url=REGISTER_PR_ENDPOINT,
+            auth=BasicAuth(hotkey, signature),
+            json=payload,
+        ) as response:
+            response.raise_for_status()
+            await response.json()
 
 
 # The main function parses the configuration and runs the validator.
 if __name__ == "__main__":
     with Validator() as validator:
         while True:
-            # bt.logging.info(f"Validator running... {time.time()}")
             time.sleep(5)
