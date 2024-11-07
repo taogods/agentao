@@ -50,8 +50,9 @@ class ESTFormatter(logging.Formatter):
         record.levelname = f"{record.levelname:<5}"
         return super().format(record)
 
-logger = logging.getLogger()  # Get the root logger
-logger.handlers.clear()  # Remove any existing handlers
+logging.getLogger().handlers.clear()  # Remove any existing handlers
+
+logger = logging.getLogger(__name__)
 
 # Create and set the handler with the custom formatter
 handler = logging.StreamHandler()
@@ -206,7 +207,7 @@ class Validator(BaseValidatorNeuron):
         try:
             async with ClientSession() as session:
                 async with session.get(PENDING_REWARDS_ENDPOINT) as raw_response:
-                    logger.info(f"Received response from {PENDING_REWARDS_ENDPOINT}...")
+                    logger.info(f"Received response from {PENDING_REWARDS_ENDPOINT} ...")
 
                     raw_response.raise_for_status()
                     response = await raw_response.json()
@@ -275,18 +276,26 @@ class Validator(BaseValidatorNeuron):
         code_challenge: Optional[Union[LabelledIssueTask, OpenIssueTask]] = None
         for task_type in task_types:
             try:
-                logger.info(f"Making request of type {task_type.__name__} to {DATA_ENDPOINT_BY_TASK[task_type]} ...")
+                logger.info(f"Fetching {task_type.__name__} from {DATA_ENDPOINT_BY_TASK[task_type]} ...")
                 response = requests.get(DATA_ENDPOINT_BY_TASK[task_type]).json()
 
-                logger.info(f"Received response for request of type {task_type.__name__} to {DATA_ENDPOINT_BY_TASK[task_type]} . Parsing response...")
+                logger.info(f"Fetched {task_type.__name__} from {DATA_ENDPOINT_BY_TASK[task_type]} ."
+                            f" Parsing task...")
 
                 code_challenge = task_type.model_validate(response)
-                logger.info("Response parsed")
+
+                if task_type == LabelledIssueTask:
+                    logger.info(f"Parsed LabelledIssueTask. S3 url: {code_challenge.s3_repo_url}")
+                elif task_type == OpenIssueTask:
+                    logger.info(f"Parsed OpenIssueTask. "
+                                f"Repo url: {code_challenge.repo_url}, issue url: {code_challenge.issue_url}")
+
             except Exception:
-                logger.exception("Error fetching issue from data endpoint. Exiting forward pass...")
+                logger.exception(f"Error fetching {task_type.__name__} from {DATA_ENDPOINT_BY_TASK[task_type]}. "
+                                 f"Exiting forward pass...")
                 return
 
-            logger.info(f"Sending task to miners, S3 URL: {code_challenge.s3_repo_url}...")
+            logger.info(f"Sending task {code_challenge.s3_repo_url} to miners, ...")
             responses: List[CodingTask] = await self.dendrite(
                 axons=axons,
                 synapse=CodingTask(
@@ -297,7 +306,8 @@ class Validator(BaseValidatorNeuron):
                 deserialize=False,
                 timeout=timedelta(minutes=30).total_seconds(), # TODO: need a better timeout method
             )
-            logger.info(f"Received task responses from miners: {[r.patch for r in responses]}")
+            logger.info(f"Received patches from miners for task {code_challenge.s3_repo_url}: "
+                        f"{[(r.patch[:100] + '...' if r.patch else r.patch) for r in responses]}")
 
             working_miner_uids: List[int] = []
             finished_responses: List[str] = []
@@ -318,7 +328,7 @@ class Validator(BaseValidatorNeuron):
                 logger.info("No miners responded. Exiting forward pass...")
                 return
 
-            logger.info(f"Running task-specific handlers for task {task_type.__name__}")
+            logger.info(f"Running task-specific handlers for {task_type.__name__}")
             if task_type == LabelledIssueTask:
                 await self.handle_labelled_issue_response(code_challenge, finished_responses, working_miner_uids)
             elif task_type == OpenIssueTask:
@@ -335,9 +345,9 @@ class Validator(BaseValidatorNeuron):
                 TaskType.LABELLED_ISSUE if task_type == LabelledIssueTask else TaskType.OPEN_ISSUE
             )
 
-            logger.info(f"Finished forward pass for task {task_type}")
+            logger.info(f"Finished forward pass for {task_type.__name__}")
 
-        logger.info("Finished forward pass for both tasks")
+        logger.info(f"Finished forward pass for all available task types ({[t.__name__ for t in task_types]})")
 
 
     async def handle_open_issue_response(
