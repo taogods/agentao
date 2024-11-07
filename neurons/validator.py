@@ -1,12 +1,27 @@
 # The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
 # Copyright © 2023 Taoception
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+# documentation files (the “Software”), to deal in the Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+# The above copyright notice and this permission notice shall be included in all copies or substantial portions of
+# the Software.
+# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+# THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+# DEALINGS IN THE SOFTWARE.
+
 import logging
 import os
 import subprocess
+from datetime import datetime
 from datetime import timedelta
 from typing import List, Optional, Union, Tuple
 
+import pytz
 import time
 from github.PullRequest import PullRequest
 from sweagent.environment.swe_env import EnvironmentArguments, SWEEnv
@@ -21,8 +36,6 @@ from taoception.base.validator import BaseValidatorNeuron, TaskType
 from taoception.code_compare import compare_and_score
 from taoception.protocol import CodingTask
 from taoception.utils.uids import check_uid_availability
-import pytz
-from datetime import datetime
 
 
 # Custom formatter to include line number and PST time
@@ -46,17 +59,6 @@ handler.setFormatter(PSTFormatter('%(asctime)s - %(filename)s:%(lineno)d [%(leve
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
 
-# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-# documentation files (the “Software”), to deal in the Software without restriction, including without limitation
-# the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-# The above copyright notice and this permission notice shall be included in all copies or substantial portions of
-# the Software.
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-# THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-# DEALINGS IN THE SOFTWARE.
 
 class Validator(BaseValidatorNeuron):
     """
@@ -84,10 +86,10 @@ class Validator(BaseValidatorNeuron):
             compare_and_score(challenge.patch, response)
             for response in responses
         ])
-    
+
     async def upload_closed_issue(
-        self, 
-        issue: LabelledIssueTask, 
+        self,
+        issue: LabelledIssueTask,
         response_patches: List[str],
         response_scores: np.ndarray,
         miner_hotkeys: List[str],
@@ -106,14 +108,14 @@ class Validator(BaseValidatorNeuron):
                     "solution_patch": response_patch,
                     "score": response_score,
                     "miner_hotkey": miner_hotkey,
-                } for 
-                    response_patch, 
-                    response_score, 
-                    miner_hotkey 
+                } for
+                    response_patch,
+                    response_score,
+                    miner_hotkey
                     in zip(response_patches, response_scores, miner_hotkeys)
                 ]
                 async with session.post(
-                    url=UPLOAD_ISSUE_ENDPOINT, 
+                    url=UPLOAD_ISSUE_ENDPOINT,
                     auth=BasicAuth(hotkey, signature),
                     json=payload,
                 ) as response:
@@ -141,7 +143,7 @@ class Validator(BaseValidatorNeuron):
             path_to_patch = "model.patch"
             with open(path_to_patch, "w") as f:
                 f.write(patch)
-            
+
             subprocess.run(
                 f"docker cp {path_to_patch} {env.container_name}:/root/model.patch",
                 shell=True,
@@ -181,7 +183,7 @@ class Validator(BaseValidatorNeuron):
         except Exception:
             logger.exception("Error registering PR")
             # TODO: Handle error casez
-        
+
     async def assign_pending_rewards_scores(self, miner_uids: List[int]) -> None:
         logger.info(f"Entering pending rewards assignment. Making request to {PENDING_REWARDS_ENDPOINT} ...")
         try:
@@ -194,7 +196,7 @@ class Validator(BaseValidatorNeuron):
                     logger.info(f"Parsed response from {PENDING_REWARDS_ENDPOINT}")
 
                     pending_rewards = [
-                        PendingRewards.model_validate(reward) 
+                        PendingRewards.model_validate(reward)
                         for reward in response
                     ]
                     if not pending_rewards:
@@ -236,7 +238,7 @@ class Validator(BaseValidatorNeuron):
         if len(miner_uids) == 0:
             logger.info("No miners available to query. Exiting forward pass...")
             return
-        
+
         axons = [self.metagraph.axons[uid] for uid in miner_uids]
 
         await self.assign_pending_rewards_scores(miner_uids)
