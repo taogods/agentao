@@ -1,34 +1,58 @@
 # The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
 # Copyright © 2023 Taoception
-import argparse
-import os
-from pathlib import Path
-
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
 # the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
 # and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
 # The above copyright notice and this permission notice shall be included in all copies or substantial portions of
 # the Software.
-
 # THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
 # THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
 # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import time
+import argparse
+import logging
+import os
 import typing
+from datetime import datetime
+from pathlib import Path
 
-import bittensor as bt
+import pytz
+import time
 
 import taoception
-# import base miner class which takes care of most of the boilerplate
 from taoception.base.miner import BaseMinerNeuron
-from taoception.miner_utils import UnsolvedIssue, generate_code_patch, IssueSolution
+from taoception.miner_utils import UnsolvedIssue, generate_code_patch
 from taoception.s3_utils import download_repo_locally
+
+if logging.getLogger().hasHandlers():
+    logging.getLogger().handlers.clear()
+
+
+# Custom formatter to include line number and EST time
+class ESTFormatter(logging.Formatter):
+    def formatTime(self, record, datefmt=None):
+        est = pytz.timezone("America/New_York")
+        ct = datetime.fromtimestamp(record.created, est)
+        return ct.strftime("%Y-%m-%d %H:%M:%S")
+
+    def format(self, record):
+        # Pad the level name to 5 characters
+        record.levelname = f"{record.levelname:<5}"
+        return super().format(record)
+
+
+logger = logging.getLogger(__name__)
+
+# Set up the custom handler and formatter
+handler = logging.StreamHandler()
+formatter = ESTFormatter('%(asctime)s - %(filename)s:%(lineno)d [%(levelname)s] %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
 
 
 class Miner(BaseMinerNeuron):
@@ -63,21 +87,25 @@ class Miner(BaseMinerNeuron):
         the miner's intended operation. This method demonstrates a basic transformation of input data.
         """
         # if patch.txt exists return that
+        logger.info("Starting miner forward pass...")
+        logger.info(f"Received a request with data: {synapse.s3_code_link}")
         try:
-            bt.logging.info(f"Received a request with data: {synapse.s3_code_link}")
 
             jobs_dir = Path("jobs")
             jobs_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Using {jobs_dir.absolute()} as the directory for code repositories")
 
             local_code_path = download_repo_locally(synapse.s3_code_link, jobs_dir)
             synapse.patch = generate_code_patch(
                 self.model_name, UnsolvedIssue(desc=synapse.problem_statement, local_code_path=local_code_path)
             ).patch
+            logger.info("Finished generating code patch")
 
-            bt.logging.debug(f"Generated patch: {synapse.patch}")
+            logger.info("Exiting miner forward pass")
+            logger.debug(f"Returning patch: {synapse.patch}")
             return synapse
-        except Exception as e:
-            bt.logging.error(f"Error processing request: {e}")
+        except Exception:
+            logger.exception(f"Error processing request")
 
     async def blacklist(
         self, synapse: taoception.protocol.CodingTask
@@ -113,7 +141,7 @@ class Miner(BaseMinerNeuron):
         """
 
         if synapse.dendrite is None or synapse.dendrite.hotkey is None:
-            bt.logging.warning("Received a request without a dendrite or hotkey.")
+            logger.warning("Received a request without a dendrite or hotkey.")
             return True, "Missing dendrite or hotkey"
 
         # TODO(developer): Define how miners should blacklist requests.
@@ -123,7 +151,7 @@ class Miner(BaseMinerNeuron):
             and synapse.dendrite.hotkey not in self.metagraph.hotkeys
         ):
             # Ignore requests from un-registered entities.
-            bt.logging.trace(
+            logger.info(
                 f"Blacklisting un-registered hotkey {synapse.dendrite.hotkey}"
             )
             return True, "Unrecognized hotkey"
@@ -131,12 +159,12 @@ class Miner(BaseMinerNeuron):
         if self.config.blacklist.force_validator_permit:
             # If the config is set to force validator permit, then we should only allow requests from validators.
             if not self.metagraph.validator_permit[uid]:
-                bt.logging.warning(
+                logger.warning(
                     f"Blacklisting a request from non-validator hotkey {synapse.dendrite.hotkey}"
                 )
                 return True, "Non-validator hotkey"
 
-        bt.logging.trace(
+        logger.info(
             f"Not Blacklisting recognized hotkey {synapse.dendrite.hotkey}"
         )
         return False, "Hotkey recognized!"
@@ -162,7 +190,7 @@ class Miner(BaseMinerNeuron):
         - A higher stake results in a higher priority value.
         """
         if synapse.dendrite is None or synapse.dendrite.hotkey is None:
-            bt.logging.warning("Received a request without a dendrite or hotkey.")
+            logger.warning("Received a request without a dendrite or hotkey.")
             return 0.0
         
         # TODO(developer): Define how miners should prioritize requests.
@@ -172,7 +200,7 @@ class Miner(BaseMinerNeuron):
         priority = float(
             self.metagraph.S[caller_uid]
         )  # Return the stake as the priority.
-        bt.logging.trace(
+        logger.info(
             f"Prioritizing {synapse.dendrite.hotkey} with value: {priority}"
         )
         return priority
@@ -230,5 +258,4 @@ if __name__ == "__main__":
 
     with Miner(**vars(parse_args())) as miner:
         while True:
-            # bt.logging.info(f"Miner running... {time.time()}")
             time.sleep(5)

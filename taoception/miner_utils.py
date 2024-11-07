@@ -1,8 +1,6 @@
 from dataclasses import dataclass
-from getpass import getuser
 from pathlib import Path
 
-import boto3
 from sweagent.agent.agents import Agent, AgentArguments
 from sweagent.agent.models import ModelArguments
 from sweagent.environment.swe_env import EnvironmentArguments, SWEEnv
@@ -52,6 +50,7 @@ def generate_code_patch(model_name: str, unsolved_issue: UnsolvedIssue) -> Issue
     trajectories_dir = Path.cwd() / "trajectories"
     trajectories_dir.mkdir(exist_ok=True)
 
+    logger.debug("Running sweagent...")
     info, trajectory = agent.run(
         setup_args={"issue": getattr(env, "query", None), "files": [], "test_files": [], "tests": []},
         env=env,
@@ -59,4 +58,5 @@ def generate_code_patch(model_name: str, unsolved_issue: UnsolvedIssue) -> Issue
         traj_dir=trajectories_dir,
         return_type="info_trajectory",
     )
+    logger.debug(f"Finished running sweagent. Received info: {info}")
     return IssueSolution(patch=info["submission"])
