@@ -39,10 +39,10 @@ from taoception.utils.uids import check_uid_availability
 
 
 # Custom formatter to include line number and PST time
-class PSTFormatter(logging.Formatter):
+class ESTFormatter(logging.Formatter):
     def formatTime(self, record, datefmt=None):
-        pst = pytz.timezone("America/Los_Angeles")
-        ct = datetime.fromtimestamp(record.created, pst)
+        est = pytz.timezone("America/New_York")
+        ct = datetime.fromtimestamp(record.created, est)
         return ct.strftime("%Y-%m-%d %H:%M:%S")
 
     def format(self, record):
@@ -55,7 +55,7 @@ logger.handlers.clear()  # Remove any existing handlers
 
 # Create and set the handler with the custom formatter
 handler = logging.StreamHandler()
-handler.setFormatter(PSTFormatter('%(asctime)s - %(filename)s:%(lineno)d [%(levelname)s] %(message)s'))
+handler.setFormatter(ESTFormatter('%(asctime)s - %(filename)s:%(lineno)d [%(levelname)s] %(message)s'))
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
 
