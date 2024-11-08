@@ -278,6 +278,7 @@ class Validator(BaseValidatorNeuron):
             try:
                 logger.info(f"Fetching {task_type.__name__} from {DATA_ENDPOINT_BY_TASK[task_type]} ...")
                 response = requests.get(DATA_ENDPOINT_BY_TASK[task_type]).json()
+                logger.debug(f"Unparsed response: {response}")
 
                 logger.info(f"Fetched {task_type.__name__} from {DATA_ENDPOINT_BY_TASK[task_type]} ."
                             f" Parsing task...")
