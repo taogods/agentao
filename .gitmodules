@@ -1,0 +1,3 @@
+[submodule "SWE-agent"]
+	path = SWE-agent
+	url = https://github.com/taogods/SWE-agent
