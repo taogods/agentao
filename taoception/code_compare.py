@@ -7,6 +7,10 @@ import bittensor as bt
 import openai
 import sys
 
+from typing import Optional
+
+from neurons.helpers import logger
+
 # Todo: replace this with corcel impl
 OPENAI_CLIENT: Final[openai.Client] = openai.Client(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -117,7 +121,7 @@ def compare_patches(patch_analysis1: str, patch_analysis2: str) -> Dict[str, int
     return comparison_dict
 
 
-def compare_and_score(gt_patch, miner_patch) -> float:
+def compare_and_score(gt_patch, miner_patch, event_id: Optional[str]) -> float:
     """
     Conducts LLM comparison between the ground truth patch and the miner's 
     patch and returns a score between 0 and 1.
@@ -126,8 +130,18 @@ def compare_and_score(gt_patch, miner_patch) -> float:
     comparison: Dict = compare_patches(gt_patch, miner_patch)
 
     bt.logging.info(f"Comparison results: {comparison}")
+    
+    if event_id is not None:
+        logger.info(
+            f"Pushing comparison result to Posthog results",
+            extra={
+                "event_id": event_id,
+                "comparison": comparison
+            }
+        )
+
     score = mean(comparison.values()) / 100
     return score
 
 if __name__ == "__main__":
-    compare_and_score("", "")
+    compare_and_score("this is a patch", "this is another patch", "my_event_id")

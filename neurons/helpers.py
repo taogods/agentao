@@ -2,7 +2,7 @@ import logging
 import posthog
 import os
 import pytz
-import datetime
+from datetime import datetime
 
 class ESTFormatter(logging.Formatter):
     def formatTime(self, record, datefmt=None):

@@ -62,25 +62,28 @@ class Miner(BaseMinerNeuron):
         the miner's intended operation. This method demonstrates a basic transformation of input data.
         """
         # if patch.txt exists return that
-        logger.info("Starting miner forward pass...")
-        logger.info(f"Received a request with data: {synapse.s3_code_link}")
+        logger.info("Starting miner forward pass...", extra={'event_id': synapse.event_id})
+        logger.info(f"Received a request with data: {synapse.s3_code_link}", extra={'event_id': synapse.event_id})
         try:
 
             jobs_dir = Path("jobs")
             jobs_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(f"Using {jobs_dir.absolute()} as the directory for code repositories")
+            logger.info(f"Using {jobs_dir.absolute()} as the directory for code repositories", extra={'event_id': synapse.event_id})
 
             local_code_path = download_repo_locally(synapse.s3_code_link, jobs_dir)
             synapse.patch = generate_code_patch(
                 self.model_name, UnsolvedIssue(desc=synapse.problem_statement, local_code_path=local_code_path)
             ).patch
-            logger.info("Finished generating code patch")
+            logger.info("Finished generating code patch", extra={'event_id': synapse.event_id})
 
-            logger.info("Exiting miner forward pass")
-            logger.debug(f"Returning patch: {synapse.patch}")
+            logger.info("Exiting miner forward pass", extra={'event_id': synapse.event_id})
+            logger.debug(f"Returning patch: {synapse.patch}", extra={'event_id': synapse.event_id})
             return synapse
         except Exception:
-            logger.exception(f"Error processing request")
+            if synapse.event_id:
+                logger.exception(f"Error processing request", extra={'event_id': synapse.event_id})
+            else:
+                logger.exception(f"Error processing request")
 
     async def blacklist(
         self, synapse: taoception.protocol.CodingTask

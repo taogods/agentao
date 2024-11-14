@@ -59,6 +59,9 @@ class CodingTask(bt.Synapse):
 
     # The solution to the challenge, filled by the miner
     patch: typing.Optional[str] = ''
+
+    # Event id for logging purposes
+    event_id: str
     ###########################################################################
 
     def deserialize(self) -> str:

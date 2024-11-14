@@ -16,7 +16,8 @@ class LabelledIssueTask(BaseModel):
     patch: str
     # Link to s3 bucket containing the code
     s3_repo_url: str
-
+    # Event Id for logging with posthog
+    event_id: str
 
 class OpenIssueTask(BaseModel):
     """
@@ -32,6 +33,8 @@ class OpenIssueTask(BaseModel):
     s3_repo_url: str
     # The statement of the problem 
     problem_statement: str
+    # Event Id for logging with posthog
+    event_id: str
 
 class PendingRewards(BaseModel):
     """

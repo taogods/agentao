@@ -60,8 +60,14 @@ class Validator(BaseValidatorNeuron):
         """
         Validate the responses from the miners. This function should score the responses and return a list of rewards for each miner.
         """
+        logger.info(
+            "Scoring miner submissions for task",
+            extra={
+                "event_id": challenge.event_id
+            }
+        )
         return np.array([
-            compare_and_score(challenge.patch, response)
+            compare_and_score(challenge.patch, response, challenge.event_id)
             for response in responses
         ])
 
@@ -263,10 +269,10 @@ class Validator(BaseValidatorNeuron):
                 code_challenge = task_type.model_validate(response)
 
                 if task_type == LabelledIssueTask:
-                    logger.info(f"Parsed LabelledIssueTask. S3 url: {code_challenge.s3_repo_url}")
+                    logger.info(f"Parsed LabelledIssueTask. S3 url: {code_challenge.s3_repo_url}", extra={'event_id': code_challenge.event_id})
                 elif task_type == OpenIssueTask:
                     logger.info(f"Parsed OpenIssueTask. "
-                                f"Repo url: {code_challenge.repo_url}, issue url: {code_challenge.issue_url}")
+                                f"Repo url: {code_challenge.repo_url}, issue url: {code_challenge.issue_url}", extra={'event_id': code_challenge.event_id})
 
             except Exception:
                 logger.exception(f"Error fetching {task_type.__name__} from {DATA_ENDPOINT_BY_TASK[task_type]}. "
@@ -280,33 +286,34 @@ class Validator(BaseValidatorNeuron):
                     problem_statement=code_challenge.problem_statement,
                     s3_code_link=code_challenge.s3_repo_url,
                     patch=None,
+                    event_id=code_challenge.event_id
                 ),
                 deserialize=False,
                 timeout=timedelta(minutes=30).total_seconds(), # TODO: need a better timeout method
             )
             logger.info(f"Received patches from miners for task {code_challenge.s3_repo_url}: "
-                        f"{[(r.patch[:100] + '...' if r.patch else r.patch) for r in responses]}")
+                        f"{[(r.patch[:100] + '...' if r.patch else r.patch) for r in responses]}", extra={'event_id': code_challenge.event_id})
 
             working_miner_uids: List[int] = []
             finished_responses: List[str] = []
 
-            logger.info("Checking which received patches are valid...")
+            logger.info("Checking which received patches are valid...", extra={'event_id': code_challenge.event_id})
             for response in responses:
                 if not response:
-                    logger.info(f"Miner with hotkey {response.axon.hotkey} did not give a response")
+                    logger.info(f"Miner with hotkey {response.axon.hotkey} did not give a response", extra={'event_id': code_challenge.event_id})
                 elif response.patch in [None, ""] or not response.axon or not response.axon.hotkey:
-                    logger.info(f"Miner with hotkey {response.axon.hotkey} gave a response object but no patch")
+                    logger.info(f"Miner with hotkey {response.axon.hotkey} gave a response object but no patch", extra={'event_id': code_challenge.event_id})
                 else:
-                    logger.info(f"Miner with hotkey {response.axon.hotkey} gave a valid response/patch")
+                    logger.info(f"Miner with hotkey {response.axon.hotkey} gave a valid response/patch", extra={'event_id': code_challenge.event_id})
                     uid = next(uid for uid, axon in zip(miner_uids, axons) if axon.hotkey == response.axon.hotkey)
                     working_miner_uids.append(uid)
                     finished_responses.append(response.patch)
 
             if len(working_miner_uids) == 0:
-                logger.info("No miners responded. Exiting forward pass...")
+                logger.info("No miners responded. Exiting forward pass...", extra={'event_id': code_challenge.event_id})
                 return
 
-            logger.info(f"Running task-specific handlers for {task_type.__name__}")
+            logger.info(f"Running task-specific handlers for {task_type.__name__}", extra={'event_id': code_challenge.event_id})
             if task_type == LabelledIssueTask:
                 await self.handle_labelled_issue_response(code_challenge, finished_responses, working_miner_uids)
             elif task_type == OpenIssueTask:
@@ -316,14 +323,14 @@ class Validator(BaseValidatorNeuron):
             # give min reward to miners who didn't respond
             bad_miner_uids = [uid for uid in miner_uids if uid not in working_miner_uids]
             penalty_tensor = np.array([NO_MINER_RESPONSE_SCORE] * len(bad_miner_uids))
-            logger.info(f"Bad miner UIDs: {bad_miner_uids}")
+            logger.info(f"Bad miner UIDs: {bad_miner_uids}", extra={'event_id': code_challenge.event_id})
             self.update_scores(
                 penalty_tensor,
                 bad_miner_uids,
                 TaskType.LABELLED_ISSUE if task_type == LabelledIssueTask else TaskType.OPEN_ISSUE
             )
 
-            logger.info(f"Finished forward pass for {task_type.__name__}")
+            logger.info(f"Finished forward pass for {task_type.__name__}", extra={'event_id': code_challenge.event_id})
 
         logger.info(f"Finished forward pass for all available task types ({[t.__name__ for t in task_types]})")
 
