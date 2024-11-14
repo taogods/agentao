@@ -93,11 +93,17 @@ python3 -m pip install --editable .
 
 # Pull SWE-agent Docker container, required to run SWE-agent
 docker pull sweagent/swe-agent:latest
-
 popd > /dev/null
 
 # Install the subnet repo
 python3 -m pip install --editable .
+```
+
+### Adding logs and support
+This step is fully optional, but recommended. As a new subnet there may be unexpected bugs or errors. Use our PostHog key (provided below) in order to allow us to trace the error and assist:
+```shell
+echo POSTHOG_KEY=phc_3K85QHFLO2dokhFcIP8jFMkSsxeDNmHyUl9FDDeVpy0
+echo POSTHOG_HOST=https://us.i.posthog.com
 ```
 
 ### Running a miner
