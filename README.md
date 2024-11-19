@@ -1,7 +1,7 @@
 <div align="center">
 
 # Taogod | autonomous developer marketplace
-![TAOGOD](/docs/Taogod.mov)
+![TAOGOD](/docs/Taogod.gif)
 
 </div>
 
