@@ -1,6 +1,7 @@
 <div align="center">
 
 # Taogod | autonomous developer marketplace
+![TAOGOD](/docs/Taogod.gif)
 
 </div>
 
@@ -12,65 +13,73 @@
 - [License](#license)
 
 ## Introduction
-There will come a day when large portions of grunt work in software engineering are fully automated, where tedious data definition, schema writing, monkey patching is done near instantly by autonomous agents. And when that day arrives, people will remember Bittensor and Taogod as it's driver.
+The future of software engineering is one where repetitive and mundane tasks—data definition, schema writing, and patching—are automated almost instantly by intelligent autonomous agents. When that day comes, Bittensor and Taogod will be recognized as key drivers of this revolution.
 
 ### The future of autonomous agents
-Imagine if you open an issue on scikit-learn, and within 5 minutes a PR is opened by **Taogod Bot**. As you make comments and give feedback, it engages you, working tirelessly until the solution is merged, resulting in YOU getting paid TAO.
+Imagine opening an issue on scikit-learn and, within minutes, receiving a pull request from **Taogod Bot**. The bot engages in meaningful discussions, iterates on feedback, and works tirelessly until the issue is resolved. In this process, you are rewarded with TAO for your contribution.
 
-Commodifying and incentivizing innovation - this is what Taogod brings.
+This vision encapsulates the commoditization and incentivization of innovation—what Taogod strives to achieve.
 
 ### The Vision
-At Taogod we seek to create a self-fulfilling autonomous SWE agent market. Our Bittensor-powered agents will work on code issues posted in a decentralized market, scourge the net for open issues to solve, and continuously contribute to the meta-allocation engine behind this economy - Cerebro. 
+At **Taogod**, our mission is to create a decentralized, self-sustaining marketplace of autonomous software engineering agents. Powered by Bittensor, these agents tackle code issues posted in a decentralized market, scour repositories for unresolved issues, and continuously enhance the meta-allocation engine driving this ecosystem: **Cerebro**.
 
-As the network grows, Cerebro gains the intelligence to lead the pipeline from problem statement to issue resolution in the most efficient manner, as its miners also gain the intelligence to solve more advanced problems.
-
-As Taogod contributes to thousands of codebases in the open and closed source space, we will see a proliferation of Bittensor users contributing to the open issue marketplace, which will have direct positive impact on the utility of the network.
+As the network grows, Cerebro evolves to efficiently transform problem statements into solutions. Simultaneously, miners become increasingly adept at solving advanced problems. By contributing to open and closed-source codebases across industries, Taogod fosters a proliferation of Bittensor-powered users engaging in an open-issue marketplace—directly enhancing the network’s utility.
 
 ## Miner and Validator Functionality
 
 ### Miner
-- Receive a problem statement, context (comments, issue history), and a difficulty level for the problem as rated by Cerebro.
-- Use deep learning agents to create solution patches to problem statement.
-- Get rewarded TAO for providing correct solutions.
+- Processes problem statements with contextual information, including comments and issue history, and evaluates the difficulty as rated by Cerebro.
+- Uses deep learning models to generate solution patches for the problem statement.
+- Earns TAO rewards for correct and high-quality solutions.
 
 ### Validator 
-- Continuously generates coding tasks for miners sampled across top PyPi packages.
-- Evaluates solutions from miners using an LLM and simulated tests.
-- Scores the solution based on
-    - Correctness for issues with tests
-    - amount of time it took for solution
-    - Conciseness and similarity relative to ground truth solution.
-- Contributes results to dataset
+- Continuously generates coding tasks for miners, sampling top PyPI packages.
+- Evaluates miner-generated solutions using large language models (LLMs) and simulated test cases.
+- Scores solutions based on:
+    - Correctness, especially for issues with pre-defined tests.
+    - Speed of resolution.
+    - Conciseness and similarity to ground-truth solutions.
+	- Contributes evaluation results to the dataset used for training Cerebro.
 
 ## Roadmap
 
 **Epoch 1: Core**
-Goal: foundational development of dataset for the training of Cerebro
+
+**Objective**: Establish the foundational dataset for training Cerebro.
  
-- [ ] Subnet launch with LLM evaluation on closed (issue, PR) pairs in order to build dataset for training of Cerebro
-    - [ ] Tasks are sampled from top PyPi packages
-- [ ] Website and leaderboard launch
+- [ ] Launch a subnet that evaluates closed (issue, PR) pairs to build
+ training datasets.
+- [ ] Deploy `Taogod Twitter Bot` as the initial open-issue source.
+- [ ] Launch a website with observability tooling and a leaderboard.
+- [ ] Publish open-source dataset on HuggingFace.
 
 **Epoch 2: Ground**
-Goal: Increase difficulty of issues, build baseline Cerebro.
 
-- [ ] Integrate with Omega (SN24) for issue generation on closed PRs
-- [ ] Introduce test-simulations using SWEBench into incentive
-- [ ] Begin development of Cerebro
-- [ ] Open source dataset on HuggingFace
+**objective**: Expand the capabilities of Taogod and release Cerebro.
+
+- [ ] Integrate with Omega (SN24) for issue description generation from closed PRs. 
+- [ ] Introduce test-simulations using SWEBench into the evaluation pipeline.
+- [ ] Release Cerebro issue classifier.
+- [ ] Expand open-issue sourcing across more Taogod repositories.
 
 **Epoch 3: Sky**
-Goal: Develop pipeline for agents solving open issues on Github.
 
-- [ ] Create competition market and incentive model for open issues
-- [ ] Conduct controlled tests of open issue flow
-- [ ] Full integration of Cerebro into reward model
+**objective**: Foster a competitive market for open issues.
+
+- [ ] Develop and test a competition-based incentive model for the public 
+ creation of high-quality (judged to Cerebro) open issues.
+- [ ] Fully integrate Cerebro into the reward model.
+- [ ] Incorporate non-Taogod issue sources into the platform.
 
 **Epoch 4: heaven**
-Goal: Integrated marketplace for the development of Cerebro-accepted issues
 
-- [ ] Create app for issue registration, open to public
-- [ ] Full release of open issue flow
+**Objective**: Achieve a fully autonomous open-issue marketplace.
+
+- [ ] Refine the open-issue marketplace design and integrate it into the subnet.
+- [ ] Implement an encryption model for closed-sourced codebases, enabling
+ validators to provide **Taogod SWE** as a service.
+- [ ] Build a pipeline for miners to submit containers, enabling Taogod to 
+ autonomously generate miners for other subnets.
 
 ## Running a Miner / Validator
 
