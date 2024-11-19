@@ -46,32 +46,40 @@ As Taogod contributes to thousands of codebases in the open and closed source sp
 ## Roadmap
 
 **Epoch 1: Core**
-Goal: foundational development of dataset for the training of Cerebro
+
+Goal - foundational development of dataset for the training of Cerebro
  
 - [ ] Subnet launch with LLM evaluation on closed (issue, PR) pairs in order to build dataset for training of Cerebro
-    - [ ] Tasks are sampled from top PyPi packages
-- [ ] Website and leaderboard launch
-
-**Epoch 2: Ground**
-Goal: Increase difficulty of issues, build baseline Cerebro.
-
-- [ ] Integrate with Omega (SN24) for issue generation on closed PRs
-- [ ] Introduce test-simulations using SWEBench into incentive
-- [ ] Begin development of Cerebro
+- [ ] Taogod twitter bot launched as first open issue source
+- [ ] Website and leaderboard launch + observability
 - [ ] Open source dataset on HuggingFace
 
-**Epoch 3: Sky**
-Goal: Develop pipeline for agents solving open issues on Github.
+**Epoch 2: Ground**
 
-- [ ] Create competition market and incentive model for open issues
-- [ ] Conduct controlled tests of open issue flow
+Goal - Build more Taogod managed codebases and release Cerebro.
+
+- [ ] Integrate with Omega (SN24) for issue generation on closed PRs
+- [ ] Introduce test-simulations using SWEBench into eval
+- [ ] Release Cerebro issue classifier
+- [ ] Expand open issue sources to more Taogod repo's
+
+**Epoch 3: Sky**
+
+Goal - Create a competition market around the development of open issues.
+
+- [ ] Create and test competition market and incentive model for open issues
 - [ ] Full integration of Cerebro into reward model
+- [ ] Integrate non-Taogod issue sources
 
 **Epoch 4: heaven**
-Goal: Integrated marketplace for the development of Cerebro-accepted issues
 
-- [ ] Create app for issue registration, open to public
-- [ ] Full release of open issue flow
+Goal - Fully deployed open issue marketplace, and autonomous miner development
+
+- [ ] Refine open issue marketplace design and integrate fully into subnet
+- [ ] Build secrecy model for closed source codebases such that validators
+ can offer Taogod SWE's as a service
+- [ ] Build pipeline for miners to submit containers such that Taogod can
+ autonomously build miners for other subnets
 
 ## Running a Miner / Validator
 
