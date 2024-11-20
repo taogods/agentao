@@ -21,6 +21,7 @@ class PostHogHandler(logging.Handler):
     def __init__(self):
         super().__init__()
         self.setFormatter(formatter)
+        self.setLevel(logging.INFO)  # Only capture INFO or higher
 
     def emit(self, record):
         try:
@@ -39,6 +40,8 @@ class PostHogHandler(logging.Handler):
                 event=event_id,
                 properties=event_properties
             )
+
+            posthog.flush()
         except Exception:
             self.handleError(record)
 
