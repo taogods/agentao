@@ -27,6 +27,8 @@ As the network grows, Cerebro evolves to efficiently transform problem statement
 
 ## Miner and Validator Functionality
 
+![Subnet Flow diagram](docs/subnet_flow.png)
+
 ### Miner
 - Processes problem statements with contextual information, including comments and issue history, and evaluates the difficulty as rated by Cerebro.
 - Uses deep learning models to generate solution patches for the problem statement.
