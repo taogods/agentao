@@ -6,9 +6,11 @@ from typing import Dict, Final
 import bittensor as bt
 import openai
 import sys
+import unidiff
+from pathlib import Path
 
 # Todo: replace this with corcel impl
-OPENAI_CLIENT: Final[openai.Client] = openai.Client(api_key=os.getenv("OPENAI_API_KEY"))
+# OPENAI_CLIENT: Final[openai.Client] = openai.Client(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 def extract_requirements(issue_text):
@@ -129,5 +131,28 @@ def compare_and_score(gt_patch, miner_patch) -> float:
     score = mean(comparison.values()) / 100
     return score
 
+def new_compare(problem_statement: str, patch: str, codebase: Path) -> float:
+    # First check if its a valid diff
+    try:
+        diff = unidiff.PatchSet(patch)
+    except Exception as e:
+        return 0.0
+    
+    if len(diff) == 0:
+        return 0.0
+    
+    # TODO: Check number of affected files, functions, etc.    
+    # TODO: Apply the patch to see if it works against the codebase
+
+    return 1.0
+
 if __name__ == "__main__":
-    compare_and_score("", "")
+    # compare_and_score("", "")
+
+    print(new_compare("", """diff --git a/file.txt b/file.txt 
+            index e69de29..4b825dc 100644
+            --- a/file.txt
+            +++ b/file.txt
+            @@ -0,0 +1 @@
+            +Hello World
+            """))
