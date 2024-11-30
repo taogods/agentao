@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+snok-asgi-correlation-id-c9927f37bebfeb5ac9ea94e99cf58d8a3d84cad8/
 
 # C extensions
 *.so

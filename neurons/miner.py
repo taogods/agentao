@@ -68,8 +68,6 @@ class Miner(BaseMinerNeuron):
         self.model_name = model_name
         super(Miner, self).__init__(config=config)
 
-        # TODO(developer): Anything specific to your use case you can do here
-
     async def forward(
         self, synapse: taogod.protocol.CodingTask
     ) -> taogod.protocol.CodingTask:

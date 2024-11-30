@@ -16,6 +16,7 @@
 
 import logging
 import os
+from pathlib import Path
 import subprocess
 from datetime import datetime
 from datetime import timedelta
@@ -35,6 +36,7 @@ from neurons.constants import DATA_ENDPOINT_BY_TASK, UPLOAD_ISSUE_ENDPOINT, REGI
 from taogod.base.validator import BaseValidatorNeuron, TaskType
 from taogod.code_compare import compare_and_score
 from taogod.protocol import CodingTask
+from taogod.s3_utils import download_repo_locally
 from taogod.utils.uids import check_uid_availability
 
 
@@ -79,7 +81,11 @@ class Validator(BaseValidatorNeuron):
         # TODO(developer): Anything specific to your use case you can do here
 
     @staticmethod
-    async def calculate_rewards(challenge: LabelledIssueTask, responses: List[str]) -> np.ndarray:
+    async def calculate_rewards(
+        challenge: LabelledIssueTask, 
+        responses: List[str],
+        local_code_path: Path
+    ) -> np.ndarray:
         """
         Validate the responses from the miners. This function should score the responses and return a list of rewards for each miner.
         """
@@ -286,6 +292,9 @@ class Validator(BaseValidatorNeuron):
                 code_challenge = task_type.model_validate(response)
 
                 if task_type == LabelledIssueTask:
+                    jobs_dir = Path("jobs")
+                    jobs_dir.mkdir(exist_ok=True, parents=True)
+                    local_code_path = download_repo_locally(code_challenge.s3_repo_url, jobs_dir)
                     logger.info(f"Parsed LabelledIssueTask. S3 url: {code_challenge.s3_repo_url}")
                 elif task_type == OpenIssueTask:
                     logger.info(f"Parsed OpenIssueTask. "
@@ -355,7 +364,11 @@ class Validator(BaseValidatorNeuron):
         self, code_challenge: OpenIssueTask, finished_responses: List[str], working_miner_uids: List[int]
     ) -> None:
         logger.debug("Entering handle_open_issue response...")
-        best_patch, best_uid = Validator.get_best_submission(self.scores, working_miner_uids, finished_responses)
+        best_patch, best_uid = Validator.get_best_submission(
+            self.scores, 
+            working_miner_uids, 
+            finished_responses
+        )
 
         if best_patch is None or best_uid is None:
             logger.error("best patch is None. Skipping opening PR.")
@@ -369,10 +382,18 @@ class Validator(BaseValidatorNeuron):
 
 
     async def handle_labelled_issue_response(
-        self, code_challenge: LabelledIssueTask, finished_responses: List[str], working_miner_uids: List[int]
+        self, 
+        code_challenge: LabelledIssueTask, 
+        finished_responses: List[str], 
+        working_miner_uids: List[int]
     ) -> None:
         try:
-            rewards_list = await Validator.calculate_rewards(code_challenge, finished_responses)
+            local_code_path = ...
+            rewards_list = await Validator.calculate_rewards(
+                code_challenge, 
+                finished_responses,
+                local_code_path
+            )
         except Exception:
             logger.exception("Error calculating rewards")
             return

@@ -1,7 +1,6 @@
 # The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
-# TODO(developer): Set your name
-# Copyright © 2023 <your name>
+# Copyright © 2023 TaoGod
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
@@ -62,16 +61,16 @@ with codecs.open(
     version_string = version_match.group(1)
 
 setup(
-    name="taogod",  # TODO(developer): Change this value to your module subnet name.
+    name="taogod", 
     version=version_string,
-    description="taogod",  # TODO(developer): Change this value to your module subnet description.
+    description="taogod", 
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/opentensor/bittensor-subnet-template",  # TODO(developer): Change this url to your module subnet github url.
+    url="https://github.com/opentensor/bittensor-subnet-template", 
     author="Taogod",
     packages=find_packages(),
     include_package_data=True,
-    author_email="",  # TODO(developer): Change this value to your module subnet author email.
+    author_email="", 
     license="MIT",
     python_requires=">=3.8",
     install_requires=[
