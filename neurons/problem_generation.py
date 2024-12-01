@@ -70,7 +70,7 @@ def walk_repository(repo_path: Path) -> Dict:
 
         # Filter out common files/directories to ignore
         dirs[:] = [d for d in dirs if not d.startswith(('.', '__'))]
-        files = [f for f in files if not f.startswith(('.', '__')) and not f.endswith(('.pyc', '.pyo') and f.endswith('.py'))]
+        files = [f for f in files if not f.startswith(('.', '__')) and not f.endswith(('.pyc', '.pyo')) and f.endswith('.py')]
 
         # Add to map
         repo_map[rel_path] = {
@@ -170,9 +170,14 @@ def get_sample_files(local_repo: Path) -> List[File]:
     for dir_path, contents in repo_structure.items():
         full_path = os.path.join(local_repo, dir_path) if dir_path else local_repo
         if contents['files']:
-            file_pairs.append(evaluate_for_context(full_path, contents))  # Added full_path parameter
+            file_pairs.append(evaluate_for_context(full_path, contents))
+
+    valid_pairs = [pair for pair in file_pairs if pair and isinstance(pair, FilePair)]
+    if not valid_pairs:
+        raise ValueError("No valid file pairs found in the repository. Ensure there are directories with 5+ Python files.")
+    
     selected_file_pair = sorted(
-        [pair for pair in file_pairs if pair and isinstance(pair, FilePair)],
+        valid_pairs,
         key=lambda x: float(x.cosine_similarity),
         reverse=True
     )[0]  # Get the top pair
