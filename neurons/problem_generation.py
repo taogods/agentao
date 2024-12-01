@@ -70,7 +70,7 @@ def walk_repository(repo_path: Path) -> Dict:
 
         # Filter out common files/directories to ignore
         dirs[:] = [d for d in dirs if not d.startswith(('.', '__'))]
-        files = [f for f in files if not f.startswith(('.', '__')) and not f.endswith(('.pyc', '.pyo'))]
+        files = [f for f in files if not f.startswith(('.', '__')) and not f.endswith(('.pyc', '.pyo') and f.endswith('.py'))]
 
         # Add to map
         repo_map[rel_path] = {
