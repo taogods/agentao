@@ -1,6 +1,7 @@
 import json
 import os
 from statistics import mean
+import subprocess
 from typing import Dict, Final
 
 import bittensor as bt
@@ -9,9 +10,11 @@ import sys
 import unidiff
 from pathlib import Path
 
-# Todo: replace this with corcel impl
-# OPENAI_CLIENT: Final[openai.Client] = openai.Client(api_key=os.getenv("OPENAI_API_KEY"))
+from sweagent.environment.swe_env import EnvironmentArguments, SWEEnv
+from sweagent.environment.utils import PatchFormatter
 
+# Todo: replace this with corcel impl
+OPENAI_CLIENT: Final[openai.Client] = openai.Client(api_key=os.getenv("OPENAI_API_KEY"))
 
 def extract_requirements(issue_text):
     prompt = f"""You are an assistant that extracts key requirements and expected behaviors from issue descriptions.
@@ -136,23 +139,111 @@ def new_compare(problem_statement: str, patch: str, codebase: Path) -> float:
     try:
         diff = unidiff.PatchSet(patch)
     except Exception as e:
+        print(f"Error during unidiff.PatchSet: {e}")
         return 0.0
     
     if len(diff) == 0:
+        print("No changes in the patch")
         return 0.0
     
-    # TODO: Check number of affected files, functions, etc.    
-    # TODO: Apply the patch to see if it works against the codebase
+    # Apply the patch against the codebase to see if it works
+    env_args = EnvironmentArguments(
+                image_name="sweagent/swe-agent:latest",
+                data_path=f"text://{problem_statement}",
+                repo_path=str(codebase),
+                verbose=True,
+            )
+    env = SWEEnv(env_args)
+    env.reset()
+    try:
+        path_to_patch = "model.patch"
+        with open(path_to_patch, "w") as f:
+            f.write(patch)
 
-    return 1.0
+        docker_path_to_patch = "/root/model.patch"
+        subprocess.run(
+            f"docker cp {path_to_patch} {env.container_name}:{docker_path_to_patch}",
+            shell=True,
+            check=False,
+        )
+
+        env.communicate_with_handling(
+            input=f"git apply {docker_path_to_patch}",
+            error_msg="Failed to apply test patch correctly",
+        )
+
+        os.remove(path_to_patch)
+    except Exception as e:
+        return 0.0
+    
+    def read_file(path: str) -> str:
+        with open(codebase / path, "r") as file:
+            return file.read()
+        
+    patch_formatter = PatchFormatter(patch, read_file)
+    files_affected = patch_formatter.concat_files_strings(patch_formatter._patched_files)
+
+    prompt = f"""
+    Instructions:
+
+    You are tasked with evaluating a code patch to determine how well it addresses a specific problem. Please follow these steps:
+
+    Read the Problem Statement to understand the issue that needs to be resolved.
+    Review the Git Diff to see the changes introduced by the patch.
+    Examine the Affected Files to understand the context of the changes.
+
+    Your Task:
+    Assess the patch for correctness, completeness, and effectiveness in solving the problem.
+    Consider any potential side effects or issues introduced by the patch.
+    Grade a concise solution higher than a lengthy one assuming both are correct and complete.
+    Provide a numerical score out of 100 representing how well the patch solves the problem:
+    100 means the patch perfectly and completely solves the problem.
+    0 means the patch does not address the problem at all.
+    Please output only the scalar score (an integer between 0 and 100). DO NOT
+    output any additional text or context.
+
+    Problem Statement: {problem_statement}
+    patch: {patch}
+
+    Affected Files:
+    {files_affected}
+
+    """
+
+    try:
+        response = OPENAI_CLIENT.chat.completions.create(
+            model='o1-preview-2024-09-12',
+            messages=[{"role": "user", "content": prompt}],
+        )
+        score = response.choices[0].message.content
+        score = int(score)
+    except Exception as e:
+        print(f"Error during OpenAI API call for new_compare: {e}")
+        return 0.0
+
+    return score/100.0
 
 if __name__ == "__main__":
     # compare_and_score("", "")
 
-    print(new_compare("", """diff --git a/file.txt b/file.txt 
-            index e69de29..4b825dc 100644
-            --- a/file.txt
-            +++ b/file.txt
-            @@ -0,0 +1 @@
-            +Hello World
-            """))
+    # Get the path to seaborn which is in parent directory
+    seaborn_path = Path(__file__).parent.parent / "seaborn"
+
+    # Load test.patch into patch
+    with open("test.patch") as f:
+        patch = f.read()
+
+    problem_statement = """
+    To create a more versatile color theming capability in this software system, develop a feature that allows users to toggle between different color palettes dynamically and visualize a preview of these palettes. The implementation should include:
+
+    1. A function to list all available palettes from `seaborn/palettes.py`.
+    2. An interface (could be a command-line or a simple GUI) to allow users to select a palette.
+    3. Visualization of the chosen palette using an HTML display or image output, showing each color in the palette as a rectangular block, similar to the `_repr_html_` method of `_ColorPalette`.
+    4. This feature should also integrate with the existing theme settings in `seaborn/rcmod.py` so that selecting a palette from your interface updates the current theme settings, affecting the visual appearance of any plots generated thereafter.
+
+    Ensure the solution adheres to these steps while maintaining testability and efficient use of resources.
+    """
+
+    # Get the score
+    score = new_compare(problem_statement, patch, seaborn_path)
+    print(score)
