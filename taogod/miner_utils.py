@@ -7,7 +7,6 @@ from sweagent.agent.models import ModelArguments
 from sweagent.environment.swe_env import EnvironmentArguments, SWEEnv
 
 from .swe_agent_arguments import ScriptArguments, ActionsArguments
-import logging
 
 logger = logging.getLogger(__name__)
 

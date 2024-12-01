@@ -1,139 +1,17 @@
-import json
 import os
-from statistics import mean
 import subprocess
-from typing import Dict, Final
-from neurons.helpers import logger
-import bittensor as bt
-import openai
-import sys
-import unidiff
 from pathlib import Path
+from typing import Final
 
+import openai
+import unidiff
 from sweagent.environment.swe_env import EnvironmentArguments, SWEEnv
 from sweagent.environment.utils import PatchFormatter
 
+from neurons.helpers import logger
+
 # Todo: replace this with corcel impl
 OPENAI_CLIENT: Final[openai.Client] = openai.Client(api_key=os.getenv("OPENAI_API_KEY"))
-
-
-def extract_requirements(issue_text):
-    prompt = f"""You are an assistant that extracts key requirements and expected behaviors from issue descriptions.
-
-    Issue Description:
-    {issue_text}
-
-    Please provide a concise, bulleted list of the key requirements and expected behaviors extracted from the above issue description."""
-        
-    try:
-        response = openai.ChatCompletion.create(
-            model='gpt-4',
-            messages=[{"role": "user", "content": prompt}],
-        )
-        requirements = response['choices'][0]['message']['content']
-    except Exception as e:
-        print(f"Error during OpenAI API call for extract_requirements: {e}")
-        sys.exit(1)
-    return requirements
-
-def analyze_patch(patch_text):
-    prompt = f"""You are an assistant that analyzes code patches and provides a summary of the changes.
-
-    Patch:
-    {patch_text}
-
-    Please provide a concise summary of the changes made in the above patch, including:
-    - The files and functions affected.
-    - The modifications made.
-    - The intended effect of these changes."""
-    
-    try:
-        response = openai.ChatCompletion.create(
-            model='gpt-4',
-            messages=[{"role": "user", "content": prompt}],
-        )
-        analysis = response['choices'][0]['message']['content']
-    except Exception as e:
-        print(f"Error during OpenAI API call for analyze_patch: {e}")
-        sys.exit(1)
-    return analysis
-
-def compare_patch_to_requirements(patch_analysis, requirements):
-    prompt = f"""You are an assistant that compares patch changes to issue requirements.
-
-    Issue Requirements:
-    {requirements}
-
-    Patch Analysis:
-    {patch_analysis}
-
-    Based on the above, please determine to what extent the patch addresses the issue requirements. Provide a summary of which requirements are met, which are partially met, and which are not met."""
-    
-    try:
-        response = openai.ChatCompletion.create(
-            model='gpt-4',
-            messages=[{"role": "user", "content": prompt}],
-        )
-        comparison = response['choices'][0]['message']['content']
-    except Exception as e:
-        print(f"Error during OpenAI API call for compare_patch_to_requirements: {e}")
-        sys.exit(1)
-    return comparison
-
-def compare_patches(patch_analysis1: str, patch_analysis2: str) -> Dict[str, int]:
-    prompt = f"""You are an assistant that compares two code patches.
-
-    Patch Analysis 1:
-    {patch_analysis1}
-
-    Patch Analysis 2:
-    {patch_analysis2}
-
-    Please compare the two patches and determine their similarity on the following metrics:
-    1. issue_similarity (0-100): How similar are the issues being addressed?
-    2. files_similarity (0-100): How similar are the files being modified?
-    3. functions_similarity (0-100): How similar are the functions being affected?
-    4. logic_similarity (0-100): How similar are the logical changes being made?
-    5. overall_similarity (0-100): What is the overall similarity of the patches?
-
-    Provide your analysis as a JSON object with these exact keys: [
-        "issue_similarity", 
-        "files_similarity", 
-        "functions_similarity", 
-        "logic_similarity", 
-        "overall_similarity"
-    ]. The values should be integers between 0 and 100. 
-    Do not include any special formatting like ```json, etc. 
-    The output should be formatted only as a parseable JSON dict
-    """
-    
-    try:
-        response = OPENAI_CLIENT.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        comparison =  response.choices[0].message.content
-
-        # Parse the JSON string to a Python dictionary
-        comparison_dict = json.loads(comparison)
-    except Exception as e:
-        print(f"Error during OpenAI API call or JSON parsing for compare_patches: {e}")
-        return {"overall_similarity": 100}  # TODO: Handle better
-
-    return comparison_dict
-
-
-def compare_and_score(gt_patch, miner_patch) -> float:
-    """
-    Conducts LLM comparison between the ground truth patch and the miner's 
-    patch and returns a score between 0 and 1.
-    """
-    # Compare the miner's patch to the ground truth patch
-    comparison: Dict = compare_patches(gt_patch, miner_patch)
-
-    bt.logging.info(f"Comparison results: {comparison}")
-    score = mean(comparison.values()) / 100
-    return score
 
 def new_compare(problem_statement: str, patch: str, codebase: Path) -> float:
     # First check if its a valid diff
@@ -192,16 +70,23 @@ def new_compare(problem_statement: str, patch: str, codebase: Path) -> float:
     Review the Git Diff to see the changes introduced by the patch.
     Examine the Affected Files to understand the context of the changes.
     Your Task:
-    Assess the patch for correctness, completeness, and effectiveness in solving the problem.
-    Consider any potential side effects or issues introduced by the patch.
-    Grade a concise solution higher than a lengthy one assuming both are correct and complete.
-    Provide a numerical score out of 100 representing how well the patch solves the problem:
-    100 means the patch perfectly and completely solves the problem.
-    0 means the patch does not address the problem at all.
-    If you do not know for sure that the patch perfectly and completely solved the problem, do not give it 100. Instead, give it some value between 0 and 100. Be harshly critical of the submissions you receive, think carefully to find ways in which they may have issues, and make sure the score is reduced appropriately. You will be penalized more harshly if you give scores that are too high than scores that are too low, so bias on the side of giving lower scores.
+        - Assess the patch for correctness, completeness, and effectiveness in solving the problem.
+        - Consider any potential side effects or issues introduced by the patch.
+        - Grade a concise solution higher than a lengthy one assuming both are correct and complete.
+        - Provide a numerical score out of 100 representing how well the patch solves the problem:
+        - 100 means the patch perfectly and completely solves the problem.
+        - 0 means the patch does not address the problem at all.
+        - If you do not know for sure that the patch perfectly and completely solved the problem, do not give it 100. Instead, give it some value between 0 and 100. Be harshly critical of the submissions you receive, think carefully to find ways in which they may have issues, and make sure the score is reduced appropriately. You will be penalized more harshly if you give scores that are too high than scores that are too low, so bias on the side of giving lower scores.
     
-    Please output only the scalar score (an integer between 0 and 100). DO NOT
-    output any additional text or context.
+    Output and object of the following format:
+    {{
+        "explanation": <explanation of your reasoning>   
+        "score": <integer of the score>,
+    }}
+    
+    Put all explanation in the "explanation" key of this object. In the "score" key, put only and integer of the score. The explanation should give a clear rationale for why you assigned the score you did. 
+    Ouput this object only, in valid JSON format. DO NOT output any additional text or context, like backticks (```) or anything like that.
+
     Problem Statement: {problem_statement}
     patch: {patch}
     Affected Files:
@@ -215,14 +100,13 @@ def new_compare(problem_statement: str, patch: str, codebase: Path) -> float:
             messages=[{"role": "user", "content": prompt}],
         )
         logger.info(f"response: {response}")
-        score = response.choices[0].message.content
-        logger.info(f"score: {score}")
-        score = int(score)
+        output = response.choices[0].message.content
+
+        logger.info(f"output is {output}")
+        response_obj = eval(output)
+        score = int(response_obj["score"])
     except Exception as e:
         logger.exception(f"Error during OpenAI API call for new_compare: {e}")
         return 0.0
 
     return score/100.0
-
-if __name__ == "__main__":
-    compare_and_score("", "")

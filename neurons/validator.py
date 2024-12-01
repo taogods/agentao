@@ -14,26 +14,24 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
+from pathlib import Path
 from typing import *
 
 import numpy as np
-import pytz
 import requests
 import time
-from pathlib import Path
 
 from neurons.classes import LabelledIssueTask
 from neurons.constants import DATA_ENDPOINT_BY_TASK
+from neurons.helpers import logger
 from neurons.problem_generation import generate_problem_statement
 from taogod.base.validator import BaseValidatorNeuron, TaskType
-from taogod.code_compare import compare_and_score, new_compare
+from taogod.code_compare import new_compare
 from taogod.protocol import CodingTask
 from taogod.s3_utils import download_repo_locally
 from taogod.utils.uids import check_uid_availability
 
-from neurons.helpers import logger
 
 class Validator(BaseValidatorNeuron):
     """
