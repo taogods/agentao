@@ -8,6 +8,7 @@ import numpy as np
 import openai
 import tiktoken
 from jinja2 import Template
+import json
 
 from neurons.helpers import logger
 
@@ -106,16 +107,15 @@ def evaluate_for_context(dir_path, repo_structure):
 
         return files
 
-    def _embed_code(raw_code: str):
+    def _embed_code(raw_codes: List[str]) -> List[List[float]]:
         encoding = tiktoken.get_encoding('cl100k_base')
-        truncated_input = encoding.encode(raw_code)[:8191]
+        truncated_inputs = [encoding.encode(json.dumps(code))[:8191] for code in raw_codes]
         response = OPENAI_CLIENT.embeddings.create(
             model="text-embedding-3-small",
-            input=truncated_input
+            input=truncated_inputs
         )
-
-        # Return the embedding vector
-        return response.data[0].embedding
+        # Return list of embedding vectors
+        return [data.embedding for data in response.data]
 
     def _find_most_similar_files(embedded_files: List[EmbeddedFile]) -> FilePair | None:
         max_similarity = -1
@@ -144,14 +144,14 @@ def evaluate_for_context(dir_path, repo_structure):
     if len(repo_structure['files']) >= 5:
         # print(dir_path)
         files = _retrieve_files_in_dir()
+        embeddings = _embed_code(list(map(lambda file: file['contents'], files)))
         embedded_files = [
             EmbeddedFile(
-                path=retrieved_file['path'],
-                contents=retrieved_file['contents'],
-                embedding=_embed_code(retrieved_file['contents'])
+                path=file['path'],
+                contents=file['contents'],
+                embedding=embeddings[i]
             )
-
-            for retrieved_file in files
+            for i, file in enumerate(files)
         ]
 
         most_similar_files = _find_most_similar_files(embedded_files)
