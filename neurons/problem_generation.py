@@ -171,14 +171,14 @@ def get_sample_files(local_repo: Path) -> List[File]:
         full_path = os.path.join(local_repo, dir_path) if dir_path else local_repo
         if contents['files']:
             file_pairs.append(evaluate_for_context(full_path, contents))  # Added full_path parameter
-    selected_file_pair = sorted(
+    selected_file_pair: FilePair = sorted(
         [pair for pair in file_pairs if pair and isinstance(pair, FilePair)],
         key=lambda x: float(x.cosine_similarity),
         reverse=True
     )[0]  # Get the top pair
 
-    logger.info(f"Selected file pair to generate prompt for: {selected_file_pair}")
-    return selected_file_pair.files
+    logger.info(f"Selected file pair to generate prompt for: {[f.path for f in selected_file_pair.files]}")
+    return [File(path=Path(f.path), contents=f.contents) for f in selected_file_pair.files]
 
 
 def generate_problem_statement(local_repo: Path) -> str:
