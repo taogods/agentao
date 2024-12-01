@@ -40,11 +40,15 @@ class Miner(BaseMinerNeuron):
     This class provides reasonable default behavior for a miner such as blacklisting unrecognized hotkeys, prioritizing requests based on stake, and forwarding requests to the forward function. If you need to define custom
     """
 
-    def __init__(self, config=None, model_name: str = "claude-sonnet-3.5"):
+    def __init__(
+        self, 
+        config=None, 
+        model_name: str = "claude-sonnet-3.5",
+        instance_cost: float = 3.0
+    ):
         self.model_name = model_name
+        self.instance_cost = instance_cost
         super(Miner, self).__init__(config=config)
-
-        # TODO(developer): Anything specific to your use case you can do here
 
     async def forward(
         self, synapse: taogod.protocol.CodingTask
@@ -79,6 +83,7 @@ class Miner(BaseMinerNeuron):
             
             synapse.patch = generate_code_patch(
                 self.model_name, 
+                self.instance_cost,
                 UnsolvedIssue(
                     desc=synapse.problem_statement, local_code_path=local_code_path,
                     env_setup_path=env_setup_path,
@@ -235,6 +240,7 @@ def create_keys_cfg() -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-name", choices=AVAILABLE_MODELS, default="claude-sonnet-3.5")
+    parser.add_argument("--instance-cost", type=float, default=3.0)
     args, _ = parser.parse_known_args()
     return args
 

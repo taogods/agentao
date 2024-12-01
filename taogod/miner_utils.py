@@ -20,7 +20,11 @@ class UnsolvedIssue:
 class IssueSolution:
     patch: str
 
-def create_script_arguments(model_name: str, unsolved_issue: UnsolvedIssue) -> ScriptArguments:
+def create_script_arguments(
+        model_name: str,
+        instance_cost: float, 
+        unsolved_issue: UnsolvedIssue
+    ) -> ScriptArguments:
     return ScriptArguments(
         environment=EnvironmentArguments(
             image_name="sweagent/swe-agent:latest",
@@ -33,6 +37,7 @@ def create_script_arguments(model_name: str, unsolved_issue: UnsolvedIssue) -> S
         agent=AgentArguments(
             model=ModelArguments(
                 model_name= model_name,
+                per_instance_cost_limit=instance_cost,
             ),
             config_file=Path("SWE-agent/config/default_from_url.yaml"),
         ),
@@ -44,8 +49,12 @@ def create_script_arguments(model_name: str, unsolved_issue: UnsolvedIssue) -> S
         print_config=True,
     )
 
-def generate_code_patch(model_name: str, unsolved_issue: UnsolvedIssue) -> IssueSolution:
-    script_arguments = create_script_arguments(model_name, unsolved_issue)
+def generate_code_patch(
+        model_name: str, 
+        instance_cost: float,
+        unsolved_issue: UnsolvedIssue
+    ) -> IssueSolution:
+    script_arguments = create_script_arguments(model_name, instance_cost, unsolved_issue)
 
     env = SWEEnv(script_arguments.environment)
     observation, info = env.reset(0)
