@@ -152,6 +152,7 @@ def evaluate_for_context(dir_path, repo_structure):
                 embedding=embeddings[i]
             )
             for i, file in enumerate(files)
+            if len(file['contents']) > 50
         ]
 
         most_similar_files = _find_most_similar_files(embedded_files)
