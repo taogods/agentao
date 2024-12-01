@@ -22,12 +22,13 @@ import numpy as np
 import pytz
 import requests
 import time
+from pathlib import Path
 
 from neurons.classes import LabelledIssueTask
 from neurons.constants import DATA_ENDPOINT_BY_TASK
 from neurons.problem_generation import generate_problem_statement
 from taogod.base.validator import BaseValidatorNeuron, TaskType
-from taogod.code_compare import compare_and_score
+from taogod.code_compare import compare_and_score, new_compare
 from taogod.protocol import CodingTask
 from taogod.s3_utils import download_repo_locally
 from taogod.utils.uids import check_uid_availability
@@ -52,13 +53,17 @@ class Validator(BaseValidatorNeuron):
         # TODO(developer): Anything specific to your use case you can do here
 
     @staticmethod
-    async def calculate_rewards(challenge: LabelledIssueTask, responses: List[str]) -> np.ndarray:
+    async def calculate_rewards(
+        challenge: LabelledIssueTask, 
+        responses: List[str],
+        codebase: Path,
+    ) -> np.ndarray:
         """
         Validate the responses from the miners. This function should score the responses and return a list of rewards for each miner.
         """
         # TODO(MR.GAMMA)
         return np.array([
-            compare_and_score(challenge.patch, response)
+            new_compare(challenge.problem_statement, response, codebase)
             for response in responses
         ])
 
@@ -139,15 +144,15 @@ class Validator(BaseValidatorNeuron):
             return
 
         logger.info(f"Running task-specific handlers for {task_type.__name__}")
-        await self.handle_synthetic_patch_response(code_challenge, finished_responses, working_miner_uids)
+        await self.handle_synthetic_patch_response(code_challenge, finished_responses, working_miner_uids, local_path)
 
 
     async def handle_synthetic_patch_response(
-        self, code_challenge: LabelledIssueTask, finished_responses: List[str], working_miner_uids: List[int]
+        self, code_challenge: LabelledIssueTask, finished_responses: List[str], working_miner_uids: List[int], local_path: Path
     ) -> None:
         try:
             # TODO(MR.GAMMA)
-            rewards_list = await Validator.calculate_rewards(code_challenge, finished_responses)
+            rewards_list = await Validator.calculate_rewards(code_challenge, finished_responses, local_path)
         except Exception:
             logger.exception("Error calculating rewards")
             return
