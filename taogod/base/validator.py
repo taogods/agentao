@@ -376,9 +376,7 @@ class BaseValidatorNeuron(BaseNeuron):
             bt.logging.debug(f"New moving avg scores: {scores}")
             return scores
 
-        if task_type == TaskType.OPEN_ISSUE:
-            self.pr_scores = calculate_scores(self.pr_scores)
-        elif task_type == TaskType.LABELLED_ISSUE:
+        if task_type == TaskType.LABELLED_ISSUE:
             self.scores = calculate_scores(self.scores)
 
 
