@@ -9,6 +9,7 @@ import openai
 import tiktoken
 from jinja2 import Template
 
+from neurons.helpers import logger
 
 @dataclass
 class File:
@@ -175,6 +176,7 @@ def get_sample_files(local_repo: Path) -> List[File]:
         reverse=True
     )[0]  # Get the top pair
 
+    logger.info(f"Selected file pair to generate prompt for: {selected_file_pair}")
     return selected_file_pair.files
 
 
@@ -192,4 +194,5 @@ def generate_problem_statement(local_repo: Path) -> str:
         ]
     )
     response = response_obj.choices[0].message.content
+    logger.info(f"Generated problem statement: {response}")
     return response

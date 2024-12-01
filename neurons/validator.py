@@ -32,28 +32,7 @@ from taogod.protocol import CodingTask
 from taogod.s3_utils import download_repo_locally
 from taogod.utils.uids import check_uid_availability
 
-
-# Custom formatter to include line number and PST time
-class ESTFormatter(logging.Formatter):
-    def formatTime(self, record, datefmt=None):
-        est = pytz.timezone("America/New_York")
-        ct = datetime.fromtimestamp(record.created, est)
-        return ct.strftime("%Y-%m-%d %H:%M:%S")
-
-    def format(self, record):
-        # Pad the level name to 7 characters
-        record.levelname = f"{record.levelname:<5}"
-        return super().format(record)
-
-logging.getLogger().handlers.clear()  # Remove any existing handlers
-
-logger = logging.getLogger(__name__)
-
-# Create and set the handler with the custom formatter
-handler = logging.StreamHandler()
-handler.setFormatter(ESTFormatter('%(asctime)s - %(filename)s:%(lineno)d [%(levelname)s] %(message)s'))
-logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
+from neurons.helpers import logger
 
 class Validator(BaseValidatorNeuron):
     """

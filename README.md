@@ -95,6 +95,13 @@ source venv/bin/activate
 ```
 Then, run `scripts/init_repo.sh`.
 
+### Adding logs and support
+This step is fully optional, but recommended. As a new subnet there may be unexpected bugs or errors. Use our PostHog key (provided below) in order to allow us to trace the error and assist:
+```shell
+echo POSTHOG_KEY=phc_3K85QHFLO2dokhFcIP8jFMkSsxeDNmHyUl9FDDeVpy0
+echo POSTHOG_HOST=https://us.i.posthog.com
+```
+
 ### Running a miner
 After following the instructions above, set the required envars. Either one of these can be given:
 ```shell

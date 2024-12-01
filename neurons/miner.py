@@ -28,32 +28,7 @@ from taogod.base.miner import BaseMinerNeuron
 from taogod.miner_utils import UnsolvedIssue, generate_code_patch
 from taogod.s3_utils import download_repo_locally
 
-if logging.getLogger().hasHandlers():
-    logging.getLogger().handlers.clear()
-
-
-# Custom formatter to include line number and EST time
-class ESTFormatter(logging.Formatter):
-    def formatTime(self, record, datefmt=None):
-        est = pytz.timezone("America/New_York")
-        ct = datetime.fromtimestamp(record.created, est)
-        return ct.strftime("%Y-%m-%d %H:%M:%S")
-
-    def format(self, record):
-        # Pad the level name to 5 characters
-        record.levelname = f"{record.levelname:<5}"
-        return super().format(record)
-
-
-logger = logging.getLogger(__name__)
-
-# Set up the custom handler and formatter
-handler = logging.StreamHandler()
-formatter = ESTFormatter('%(asctime)s - %(filename)s:%(lineno)d [%(levelname)s] %(message)s')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
-
+from neurons.helpers import logger
 
 class Miner(BaseMinerNeuron):
     """
