@@ -182,8 +182,8 @@ def get_sample_files(local_repo: Path) -> List[File]:
         reverse=True
     )[0]  # Get the top pair
 
-    logger.info(f"Selected file pair to generate prompt for: {selected_file_pair}")
-    return selected_file_pair.files
+    logger.info(f"Selected file pair to generate prompt for: {[f.path for f in selected_file_pair.files]}")
+    return [File(path=Path(f.path), contents=f.contents) for f in selected_file_pair.files]
 
 
 def generate_problem_statement(local_repo: Path) -> str:

@@ -1,9 +1,10 @@
 
 import logging
+from datetime import datetime
+
 import posthog
 import os
 import pytz
-import datetime
 
 class ESTFormatter(logging.Formatter):
     def formatTime(self, record, datefmt=None):
