@@ -108,13 +108,14 @@ class Validator(BaseValidatorNeuron):
         logger.info(f"Parsed {task_type.__name__}. S3 url: {code_challenge.s3_repo_url}")
 
         local_path = download_repo_locally(code_challenge.s3_repo_url)
-        problem_statement = generate_problem_statement(local_path)
+        code_challenge.problem_statement = generate_problem_statement(local_path)
+        logger.info(f"Changed code_challenge.problem_statement to: {code_challenge.problem_statement}")
 
         logger.info(f"Sending task {code_challenge.s3_repo_url} to miners, ...")
         responses: List[CodingTask] = await self.dendrite(
             axons=axons,
             synapse=CodingTask(
-                problem_statement=problem_statement,
+                problem_statement=code_challenge.problem_statement,
                 s3_code_link=code_challenge.s3_repo_url,
                 patch=None,
             ),

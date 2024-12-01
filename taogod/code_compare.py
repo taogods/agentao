@@ -3,7 +3,7 @@ import os
 from statistics import mean
 import subprocess
 from typing import Dict, Final
-
+from neurons.helpers import logger
 import bittensor as bt
 import openai
 import sys
@@ -140,11 +140,11 @@ def new_compare(problem_statement: str, patch: str, codebase: Path) -> float:
     try:
         diff = unidiff.PatchSet(patch)
     except Exception as e:
-        print(f"Error during unidiff.PatchSet: {e}")
+        logger.exception(f"Error during unidiff.PatchSet: {e}")
         return 0.0
 
     if len(diff) == 0:
-        print("No changes in the patch")
+        logger.info("No changes in the patch. Returning 0...")
         return 0.0
 
     # Apply the patch against the codebase to see if it works
@@ -175,6 +175,7 @@ def new_compare(problem_statement: str, patch: str, codebase: Path) -> float:
 
         os.remove(path_to_patch)
     except Exception as e:
+        logger.exception("Failed to apply patch, returning 0...")
         return 0.0
 
     def read_file(path: str) -> str:
@@ -197,6 +198,8 @@ def new_compare(problem_statement: str, patch: str, codebase: Path) -> float:
     Provide a numerical score out of 100 representing how well the patch solves the problem:
     100 means the patch perfectly and completely solves the problem.
     0 means the patch does not address the problem at all.
+    If you do not know for sure that the patch perfectly and completely solved the problem, do not give it 100. Instead, give it some value between 0 and 100. Be harshly critical of the submissions you receive, think carefully to find ways in which they may have issues, and make sure the score is reduced appropriately. You will be penalized more harshly if you give scores that are too high than scores that are too low, so bias on the side of giving lower scores.
+    
     Please output only the scalar score (an integer between 0 and 100). DO NOT
     output any additional text or context.
     Problem Statement: {problem_statement}
@@ -206,14 +209,17 @@ def new_compare(problem_statement: str, patch: str, codebase: Path) -> float:
     """
 
     try:
+        logger.info(f"Making OpenAI call with prompt...")
         response = OPENAI_CLIENT.chat.completions.create(
             model='o1-preview-2024-09-12',
             messages=[{"role": "user", "content": prompt}],
         )
+        logger.info(f"response: {response}")
         score = response.choices[0].message.content
+        logger.info(f"score: {score}")
         score = int(score)
     except Exception as e:
-        print(f"Error during OpenAI API call for new_compare: {e}")
+        logger.exception(f"Error during OpenAI API call for new_compare: {e}")
         return 0.0
 
     return score/100.0
