@@ -16,6 +16,8 @@ class LabelledIssueTask(BaseModel):
     patch: str
     # Link to s3 bucket containing the code
     s3_repo_url: str
+    # Setup for the environment to run the code successfully (YAML)
+    environment_setup: dict
 
 
 class OpenIssueTask(BaseModel):

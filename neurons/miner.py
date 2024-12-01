@@ -22,6 +22,7 @@ from pathlib import Path
 
 import pytz
 import time
+import yaml
 
 import taogod
 from taogod.base.miner import BaseMinerNeuron
@@ -71,10 +72,21 @@ class Miner(BaseMinerNeuron):
             logger.info(f"Using {jobs_dir.absolute()} as the directory for code repositories")
 
             local_code_path = download_repo_locally(synapse.s3_code_link, jobs_dir)
+            with open("env_setup.yaml", "w") as f:
+                yaml.safe_dump(synapse.environment_setup, f)
+
+            env_setup_path = Path.cwd() / Path("env_setup.yaml")
+            
             synapse.patch = generate_code_patch(
-                self.model_name, UnsolvedIssue(desc=synapse.problem_statement, local_code_path=local_code_path)
+                self.model_name, 
+                UnsolvedIssue(
+                    desc=synapse.problem_statement, local_code_path=local_code_path,
+                    env_setup_path=env_setup_path,
+                )
             ).patch
             logger.info("Finished generating code patch")
+
+            os.remove(env_setup_path)
 
             logger.info("Exiting miner forward pass")
             logger.debug(f"Returning patch: {synapse.patch}")

@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 class UnsolvedIssue:
     desc: str
     local_code_path: Path
+    env_setup_path: Path
 
 @dataclass
 class IssueSolution:
@@ -25,6 +26,7 @@ def create_script_arguments(model_name: str, unsolved_issue: UnsolvedIssue) -> S
             image_name="sweagent/swe-agent:latest",
             data_path=f"text://{unsolved_issue.desc}",
             repo_path=str(unsolved_issue.local_code_path),
+            environment_setup=str(unsolved_issue.env_setup_path),
             verbose=True,
         ),
         skip_existing=False,

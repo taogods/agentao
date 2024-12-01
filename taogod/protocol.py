@@ -1,6 +1,5 @@
 # The MIT License (MIT)
-# Copyright © 2023 Yuma Rao
-# Copyright © 2023 Taogod
+# Copyright © 2024 Taogod
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
@@ -19,26 +18,6 @@
 import typing
 import bittensor as bt
 
-# TODO(developer): Rewrite with your protocol definition.
-
-# This is the protocol for the dummy miner and validator.
-# It is a simple request-response protocol where the validator sends a request
-# to the miner, and the miner responds with a dummy response.
-
-# ---- miner ----
-# Example usage:
-#   def dummy( synapse: Dummy ) -> Dummy:
-#       synapse.dummy_output = synapse.dummy_input + 1
-#       return synapse
-#   axon = bt.axon().attach( dummy ).serve(netuid=...).start()
-
-# ---- validator ---
-# Example usage:
-#   dendrite = bt.dendrite()
-#   dummy_output = dendrite.query( Dummy( dummy_input = 1 ) )
-#   assert dummy_output == 2
-
-
 class CodingTask(bt.Synapse):
     """
     A simple dummy protocol representation which uses bt.Synapse as its base.
@@ -56,6 +35,9 @@ class CodingTask(bt.Synapse):
 
     # Link to S3 bucket containing code
     s3_code_link: str
+
+    # The setup for the environment to run the code successfully
+    environment_setup: dict
 
     # The solution to the challenge, filled by the miner
     patch: typing.Optional[str] = ''

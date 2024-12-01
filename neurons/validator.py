@@ -115,6 +115,7 @@ class Validator(BaseValidatorNeuron):
             synapse=CodingTask(
                 problem_statement=code_challenge.problem_statement,
                 s3_code_link=code_challenge.s3_repo_url,
+                environment_setup=code_challenge.environment_setup,
                 patch=None,
             ),
             deserialize=False,
