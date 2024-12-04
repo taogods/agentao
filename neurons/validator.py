@@ -21,15 +21,18 @@ from typing import *
 import numpy as np
 import requests
 import time
+import yaml
 
 from neurons.classes import LabelledIssueTask
 from neurons.constants import DATA_ENDPOINT_BY_TASK
 from neurons.helpers import logger
 from neurons.problem_generation import generate_problem_statement
+from sweagent.environment.swe_env import EnvironmentArguments, SWEEnv
 from taogod.base.validator import BaseValidatorNeuron, TaskType
 from taogod.code_compare import new_compare
 from taogod.protocol import CodingTask
 from taogod.s3_utils import download_repo_locally
+from taogod.synthetic_testing import apply_patch, compare_test_results, run_tests
 from taogod.utils.uids import check_uid_availability
 
 
@@ -60,10 +63,50 @@ class Validator(BaseValidatorNeuron):
         Validate the responses from the miners. This function should score the responses and return a list of rewards for each miner.
         """
         # TODO(MR.GAMMA)
-        return np.array([
+        llm_evals = np.array([
             new_compare(challenge.problem_statement, response, codebase)
             for response in responses
         ])
+
+        with open("env_setup.yaml", "w") as f:
+            yaml.safe_dump(challenge.environment_setup, f)
+
+        env_setup_path = Path.cwd() / "env_setup.yaml"
+
+        ## Synthetic testing
+        env = SWEEnv(
+            EnvironmentArguments(
+                image_name="sweagent/swe-agent:latest",
+                data_path="text://example.json", # Doesnt matter for tests
+                repo_path=str(codebase),
+                verbose=True,
+                environment_setup=str(env_setup_path),
+            )
+        )
+        _, _ = env.reset(0)
+
+        tests_before = run_tests(env)
+        synthetic_tests = []
+        for response in responses:
+            env.reset(0)
+            # TODO: Generate a test patch
+            test_patch = ...
+            # TODO: Error check here
+            apply_patch(env, test_patch)
+            apply_patch(env, response)
+
+            tests_after = run_tests(env)
+            results = compare_test_results(tests_before, tests_after)
+            synthetic_tests.append(results)
+
+        synthetic_tests = np.array([
+            int(len(test["PASS_TO_FAIL"]) == 0)
+            + int(len(test["FAIL_TO_PASS"]) >= 0)
+            + 3 * int(len(test["NEW_FAIL"]) == 0)
+            for test in synthetic_tests
+        ])
+
+        return llm_evals + synthetic_tests
 
     async def forward(self):
         """
