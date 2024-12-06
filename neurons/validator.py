@@ -58,9 +58,16 @@ class Validator(BaseValidatorNeuron):
         challenge: LabelledIssueTask, 
         responses: List[str],
         codebase: Path,
+        test_patch: str,
     ) -> np.ndarray:
         """
         Validate the responses from the miners. This function should score the responses and return a list of rewards for each miner.
+
+        Args:
+            challenge (LabelledIssueTask): The challenge task.
+            responses (List[str]): The responses from the miners.
+            codebase (Path): The path to the codebase.
+            test_patch (str): The test patch to apply.
         """
         # TODO(MR.GAMMA)
         llm_evals = np.array([
@@ -88,26 +95,26 @@ class Validator(BaseValidatorNeuron):
         tests_before = run_tests(env)
         synthetic_tests = []
         for response in responses:
-            env.reset(0)
-            # TODO: Generate a test patch
-            test_patch = ...
-            # TODO: Error check here
-            apply_patch(env, test_patch)
-            apply_patch(env, response)
+            try:
+                env.reset(0)
+                apply_patch(env, test_patch)
+                apply_patch(env, response)
 
-            tests_after = run_tests(env)
-            results = compare_test_results(tests_before, tests_after)
-            synthetic_tests.append(results)
+                tests_after = run_tests(env)
+                results = compare_test_results(tests_before, tests_after)
+                synthetic_tests.append(results)
+            except Exception as e:
+                logger.exception("Error in synthetic rewards: ", e)
+                synthetic_tests.append(None)
 
-        synthetic_tests = np.array([
-            int(len(test["PASS_TO_FAIL"]) == 0)
-            + int(len(test["FAIL_TO_PASS"]) >= 0)
-            + 3 * int(len(test["NEW_FAIL"]) == 0)
-            for test in synthetic_tests
-        ])
+        syn_tests_arr = np.array([])
+        for test in synthetic_tests:
+            if test == None: np.append(syn_tests_arr, 0.0)
+            else:
+                syn_tests_arr = np.append(syn_tests_arr, int(len(test["PASS_TO_FAIL"]) == 0) + int(len(test["FAIL_TO_PASS"]) >= 0) + 3 * int(len(test["NEW_FAIL"]) == 0))
 
-        return llm_evals + synthetic_tests
-
+        return llm_evals + syn_tests_arr
+    
     async def forward(self):
         """
         Validator forward pass. Consists of:
@@ -149,7 +156,9 @@ class Validator(BaseValidatorNeuron):
         logger.info(f"Parsed {task_type.__name__}. S3 url: {code_challenge.s3_repo_url}")
 
         local_path = download_repo_locally(code_challenge.s3_repo_url)
-        code_challenge.problem_statement = generate_problem_statement(local_path)
+        # Generate test patch and problem statement
+        # TODO: Yoruba
+        code_challenge.problem_statement, test_patch = generate_problem_statement(local_path)
         logger.info(f"Changed code_challenge.problem_statement to: {code_challenge.problem_statement}")
 
         logger.info(f"Sending task {code_challenge.s3_repo_url} to miners, ...")
@@ -187,15 +196,15 @@ class Validator(BaseValidatorNeuron):
             return
 
         logger.info(f"Running task-specific handlers for {task_type.__name__}")
-        await self.handle_synthetic_patch_response(code_challenge, finished_responses, working_miner_uids, local_path)
+        await self.handle_synthetic_patch_response(code_challenge, finished_responses, working_miner_uids, local_path, test_patch)
 
 
     async def handle_synthetic_patch_response(
-        self, code_challenge: LabelledIssueTask, finished_responses: List[str], working_miner_uids: List[int], local_path: Path
+        self, code_challenge: LabelledIssueTask, finished_responses: List[str], working_miner_uids: List[int], local_path: Path, test_patch: str,
     ) -> None:
         try:
             # TODO(MR.GAMMA)
-            rewards_list = await Validator.calculate_rewards(code_challenge, finished_responses, local_path)
+            rewards_list = await Validator.calculate_rewards(code_challenge, finished_responses, local_path, test_patch)
         except Exception:
             logger.exception("Error calculating rewards")
             return
