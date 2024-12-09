@@ -25,6 +25,7 @@ import time
 import yaml
 import os
 from concurrent.futures import ThreadPoolExecutor
+import math
 
 from neurons.classes import LabelledIssueTask
 from neurons.constants import DATA_ENDPOINT_BY_TASK, UPLOAD_ISSUE_ENDPOINT
@@ -37,6 +38,24 @@ from taogod.protocol import CodingTask
 from taogod.s3_utils import download_repo_locally
 from taogod.synthetic_testing import apply_patch, compare_test_results, run_tests
 from taogod.utils.uids import check_uid_availability
+
+CODINGTASK_TIMEOUT_MINS: float = 30.0
+
+
+def exponential_decay(N, x):
+    """
+    Outputs a value that approaches 1 as x approaches 0 and approaches 0 as x approaches or exceeds N.
+
+    Parameters:
+    - N (int or float): The threshold value.
+    - x (int or float): The input value.
+
+    Returns:
+    - float: The output value.
+    """
+    if x >= N:
+        return 0
+    return math.exp(-x / (N - x))
 
 
 class Validator(BaseValidatorNeuron):
@@ -84,6 +103,7 @@ class Validator(BaseValidatorNeuron):
     async def calculate_rewards(
         challenge: LabelledIssueTask, 
         responses: List[str],
+        process_times: List[float],
         codebase: Path,
         test_patch: str,
     ) -> np.ndarray:
@@ -105,6 +125,11 @@ class Validator(BaseValidatorNeuron):
             yaml.safe_dump(challenge.environment_setup, f)
 
         env_setup_path = Path.cwd() / "env_setup.yaml"
+
+        response_times = np.array([
+            exponential_decay(CODINGTASK_TIMEOUT_MINS*60, time)
+            for time in process_times
+        ])
 
         ## Synthetic testing
         env_args = EnvironmentArguments(
@@ -138,8 +163,9 @@ class Validator(BaseValidatorNeuron):
 
         os.remove(env_setup_path)
 
-        return llm_evals + syn_tests_arr
+        return llm_evals + syn_tests_arr + response_times
     
+    # TODO: Add more fields once components of scoring are named
     async def upload_solution(
             self,
             problem_statement: str,
@@ -234,13 +260,14 @@ class Validator(BaseValidatorNeuron):
                 patch=None,
             ),
             deserialize=False,
-            timeout=timedelta(minutes=30).total_seconds(), # TODO: need a better timeout method
+            timeout=timedelta(minutes=CODINGTASK_TIMEOUT_MINS).total_seconds(), # TODO: need a better timeout method
         )
         logger.info(f"Received patches from miners for task {code_challenge.s3_repo_url}: "
                     f"{[(r.patch[:100] + '...' if r.patch else r.patch) for r in responses]}")
 
         working_miner_uids: List[int] = []
         finished_responses: List[str] = []
+        process_times: List[float] = []
 
         logger.info("Checking which received patches are valid...")
         for response in responses:
@@ -253,20 +280,41 @@ class Validator(BaseValidatorNeuron):
                 uid = next(uid for uid, axon in zip(miner_uids, axons) if axon.hotkey == response.axon.hotkey)
                 working_miner_uids.append(uid)
                 finished_responses.append(response.patch)
+                process_times.append(response.dendrite.process_time)
 
         if len(working_miner_uids) == 0:
             logger.info("No miners responded. Exiting forward pass...")
             return
+        
+        # TODO: Add punishment for miners who did not respond
 
         logger.info(f"Running task-specific handlers for {task_type.__name__}")
-        await self.handle_synthetic_patch_response(code_challenge, finished_responses, working_miner_uids, local_path, test_patch)
+        await self.handle_synthetic_patch_response(
+            code_challenge, 
+            finished_responses, 
+            process_times,
+            working_miner_uids, 
+            local_path, 
+            test_patch
+        )
 
 
     async def handle_synthetic_patch_response(
-        self, code_challenge: LabelledIssueTask, finished_responses: List[str], working_miner_uids: List[int], local_path: Path, test_patch: str,
+        self, 
+        code_challenge: LabelledIssueTask, 
+        finished_responses: List[str],
+        process_times: List[float], 
+        working_miner_uids: List[int], 
+        local_path: Path, test_patch: str,
     ) -> None:
         try:
-            rewards_list = await Validator.calculate_rewards(code_challenge, finished_responses, local_path, test_patch)
+            rewards_list = await Validator.calculate_rewards(
+                code_challenge, 
+                finished_responses, 
+                process_times,
+                local_path, 
+                test_patch
+            )
         except Exception:
             logger.exception("Error calculating rewards")
             return
@@ -284,6 +332,7 @@ class Validator(BaseValidatorNeuron):
             await self.upload_solution(
                 code_challenge.problem_statement,
                 finished_responses,
+                process_times,
                 rewards_list,
                 [self.metagraph.S[uid].hotkey for uid in working_miner_uids],
             )
