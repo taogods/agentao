@@ -18,6 +18,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import *
 
+from aiohttp import BasicAuth, ClientSession
 import numpy as np
 import requests
 import time
@@ -26,7 +27,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 
 from neurons.classes import LabelledIssueTask
-from neurons.constants import DATA_ENDPOINT_BY_TASK
+from neurons.constants import DATA_ENDPOINT_BY_TASK, UPLOAD_ISSUE_ENDPOINT
 from neurons.helpers import logger
 from neurons.problem_generation import generate_problem_statement
 from sweagent.environment.swe_env import EnvironmentArguments, SWEEnv
@@ -139,6 +140,44 @@ class Validator(BaseValidatorNeuron):
 
         return llm_evals + syn_tests_arr
     
+    async def upload_solution(
+            self,
+            problem_statement: str,
+            responses: List[str],
+            rewards_list: List[float],
+            hotkeys: List[str],
+    ):
+        """
+        Upload the closed issue to the data endpoint.
+        """
+        keypair = self.dendrite.keypair
+        hotkey = keypair.ss58_address
+        signature = f"0x{keypair.sign(hotkey).hex()}"
+        try:
+            async with ClientSession() as session:
+                # TODO: Add how long it takes to upload the issue
+                payload = [{
+                    "problem_statement": problem_statement,
+                    "solution_patch": response_patch,
+                    "score": response_score,
+                    "miner_hotkey": miner_hotkey,
+                } for
+                    response_patch,
+                    response_score,
+                    miner_hotkey
+                    in zip(responses, rewards_list, hotkeys)
+                ]
+                async with session.post(
+                    url=UPLOAD_ISSUE_ENDPOINT,
+                    auth=BasicAuth(hotkey, signature),
+                    json=payload,
+                ) as response:
+                    response.raise_for_status()
+                    _result = await response.json()
+        except Exception:
+            logger.exception("Error uploading closed issue")
+        ...
+    
     async def forward(self):
         """
         Validator forward pass. Consists of:
@@ -227,7 +266,6 @@ class Validator(BaseValidatorNeuron):
         self, code_challenge: LabelledIssueTask, finished_responses: List[str], working_miner_uids: List[int], local_path: Path, test_patch: str,
     ) -> None:
         try:
-            # TODO(MR.GAMMA)
             rewards_list = await Validator.calculate_rewards(code_challenge, finished_responses, local_path, test_patch)
         except Exception:
             logger.exception("Error calculating rewards")
@@ -241,6 +279,16 @@ class Validator(BaseValidatorNeuron):
             working_miner_uids,
             TaskType.LABELLED_ISSUE
         )
+
+        try:
+            await self.upload_solution(
+                code_challenge.problem_statement,
+                finished_responses,
+                rewards_list,
+                [self.metagraph.S[uid].hotkey for uid in working_miner_uids],
+            )
+        except Exception:
+            logger.exception("Error uploading solution")
 
 
 # The main function parses the configuration and runs the validator.
