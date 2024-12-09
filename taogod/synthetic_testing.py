@@ -35,7 +35,7 @@ def apply_patch(env: SWEEnv, patch: str) -> bool:
         patch (str): The patch to apply.
     """
     try:
-        env.communicate(f"echo '{patch}' > /root/patch.patch")
+        env.communicate_with_handling(f"echo '{patch}' > /root/patch.patch", error_msg="Error writing patch")
         env.communicate_with_handling("git apply /root/patch.patch", error_msg="Error applying patch")
         return True
     except Exception as e:

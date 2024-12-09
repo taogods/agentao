@@ -22,6 +22,8 @@ import numpy as np
 import requests
 import time
 import yaml
+import os
+from concurrent.futures import ThreadPoolExecutor
 
 from neurons.classes import LabelledIssueTask
 from neurons.constants import DATA_ENDPOINT_BY_TASK
@@ -54,6 +56,30 @@ class Validator(BaseValidatorNeuron):
         # TODO(developer): Anything specific to your use case you can do here
 
     @staticmethod
+    def process_response_wrapper(args):
+        """
+        A wrapper function to handle multiprocessing safely.
+        Takes a tuple of arguments to pass to the `process_response` function.
+        """
+        response, env_args, test_patch, tests_before = args
+        try:
+            env = SWEEnv(env_args)
+            env.reset(0)
+            # Apply patches
+            apply_patch(env, test_patch)
+            apply_patch(env, response)
+
+            # Run tests after applying patches
+            tests_after = run_tests(env)
+
+            # Compare test results
+            results = compare_test_results(tests_before, tests_after)
+            return results
+        except Exception as e:
+            logger.exception(f"Error in synthetic rewards: {e}")
+            return None
+
+    @staticmethod
     async def calculate_rewards(
         challenge: LabelledIssueTask, 
         responses: List[str],
@@ -69,7 +95,6 @@ class Validator(BaseValidatorNeuron):
             codebase (Path): The path to the codebase.
             test_patch (str): The test patch to apply.
         """
-        # TODO(MR.GAMMA)
         llm_evals = np.array([
             new_compare(challenge.problem_statement, response, codebase)
             for response in responses
@@ -81,37 +106,36 @@ class Validator(BaseValidatorNeuron):
         env_setup_path = Path.cwd() / "env_setup.yaml"
 
         ## Synthetic testing
-        env = SWEEnv(
-            EnvironmentArguments(
+        env_args = EnvironmentArguments(
                 image_name="sweagent/swe-agent:latest",
                 data_path="text://example.json", # Doesnt matter for tests
                 repo_path=str(codebase),
                 verbose=True,
                 environment_setup=str(env_setup_path),
             )
-        )
-        _, _ = env.reset(0)
+        env = SWEEnv(env_args)
+        env.reset(0)
 
         tests_before = run_tests(env)
-        synthetic_tests = []
-        for response in responses:
-            try:
-                env.reset(0)
-                apply_patch(env, test_patch)
-                apply_patch(env, response)
 
-                tests_after = run_tests(env)
-                results = compare_test_results(tests_before, tests_after)
-                synthetic_tests.append(results)
-            except Exception as e:
-                logger.exception("Error in synthetic rewards: ", e)
-                synthetic_tests.append(None)
+        # Share `tests_before` and other data across processes by making them part of the input arguments
+        tasks = [(response, env_args, test_patch, tests_before) for response in responses]
+
+        with ThreadPoolExecutor() as executor:
+            synthetic_tests = list(executor.map(Validator.process_response_wrapper, tasks))
 
         syn_tests_arr = np.array([])
         for test in synthetic_tests:
-            if test == None: np.append(syn_tests_arr, 0.0)
+            if test is None: np.append(syn_tests_arr, 0.0)
             else:
-                syn_tests_arr = np.append(syn_tests_arr, int(len(test["PASS_TO_FAIL"]) == 0) + int(len(test["FAIL_TO_PASS"]) >= 0) + 3 * int(len(test["NEW_FAIL"]) == 0))
+                syn_tests_arr = np.append(
+                    syn_tests_arr, 
+                    2 * int(len(test["PASS_TO_FAIL"]) == 0) 
+                    + int(len(test["FAIL_TO_PASS"]) >= 0) 
+                    + 3 * int(len(test["NEW_FAIL"]) == 0)
+                )
+
+        os.remove(env_setup_path)
 
         return llm_evals + syn_tests_arr
     
