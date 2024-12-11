@@ -83,4 +83,3 @@ def setup_logger() -> Logger:
 
 # Initialize the shared logger
 logger = setup_logger()
-OPENAI_CLIENT: Final[openai.Client] = openai.Client(api_key=os.getenv("OPENAI_API_KEY"))
