@@ -101,7 +101,8 @@ class Miner(BaseMinerNeuron):
                     desc=synapse.problem_statement,
                     local_code_path=local_repo_dir,
                     env_setup_path=env_setup_path
-                )
+                ),
+                self.instance_cost,
             ).patch
             logger.info(f"Finished generating code patch for repo {synapse.repo}")
 

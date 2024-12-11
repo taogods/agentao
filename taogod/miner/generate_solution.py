@@ -21,8 +21,6 @@ from sweagent.types import AgentInfo, TrajectoryStep
 from taogod.helpers.classes import UnsolvedIssue, IssueSolution, MinerModelStats
 from taogod.helpers.clients import logger
 
-PER_INSTANCE_COST_LIMIT: Final[float] = 1.  # in $
-
 @dataclass(frozen=True)
 class ActionsArguments(FlattenedAccess, FrozenSerializable):
     """Run real-life actions (opening PRs, etc.) if we can solve the issue."""
@@ -84,7 +82,11 @@ class ScriptArguments(FlattenedAccess, FrozenSerializable):
             + (f"__{self.suffix}" if self.suffix else "")
         )
 
-def create_script_arguments(model_name: str, unsolved_issue: UnsolvedIssue) -> ScriptArguments:
+def create_script_arguments(
+        model_name: str,
+        unsolved_issue: UnsolvedIssue,
+        instance_cost_limit: float
+) -> ScriptArguments:
     swe_agent_root = Path("../SWE-agent")
     return ScriptArguments(
         environment=EnvironmentArguments(
@@ -99,7 +101,7 @@ def create_script_arguments(model_name: str, unsolved_issue: UnsolvedIssue) -> S
         agent=AgentArguments(
             model=ModelArguments(
                 model_name= model_name,
-                per_instance_cost_limit=PER_INSTANCE_COST_LIMIT,
+                per_instance_cost_limit=instance_cost_limit,
             ),
             config_file=Path(swe_agent_root / "config/default_from_url.yaml"),
         ),
@@ -111,8 +113,10 @@ def create_script_arguments(model_name: str, unsolved_issue: UnsolvedIssue) -> S
         print_config=True,
     )
 
-def generate_code_patch(model_name: str, unsolved_issue: UnsolvedIssue) -> IssueSolution:
-    script_arguments = create_script_arguments(model_name, unsolved_issue)
+def generate_code_patch(
+        model_name: str, unsolved_issue: UnsolvedIssue, instance_cost_limit: float
+) -> IssueSolution:
+    script_arguments = create_script_arguments(model_name, unsolved_issue, instance_cost_limit)
 
     env = SWEEnv(script_arguments.environment)
     observation, info = env.reset(0)
