@@ -92,6 +92,7 @@ setup(
         "pygithub",
         "pytz",
         "posthog",
+        "tiktoken",
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",

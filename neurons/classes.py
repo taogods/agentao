@@ -4,6 +4,13 @@ TODO: remove duplication
 """
 from pydantic import BaseModel
 
+class SyntheticTask(BaseModel):
+    repo: str
+    # Description of problem to be solved
+    problem_statement: str
+    # The solution patch
+    patch: str
+
 
 class LabelledIssueTask(BaseModel):
     """

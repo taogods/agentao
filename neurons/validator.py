@@ -14,32 +14,74 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+import time
 from datetime import timedelta
 from pathlib import Path
+from textwrap import dedent
 from typing import *
 
-from aiohttp import BasicAuth, ClientSession
-import numpy as np
-import requests
-import time
-import yaml
-import os
-from concurrent.futures import ThreadPoolExecutor
 import math
+import numpy as np
+from aiohttp import BasicAuth, ClientSession
+from jinja2 import Template
+from sweagent.environment.swe_env import SWEEnv
 
-from neurons.classes import LabelledIssueTask
-from neurons.constants import DATA_ENDPOINT_BY_TASK, UPLOAD_ISSUE_ENDPOINT
+from neurons.constants import UPLOAD_ISSUE_ENDPOINT
 from neurons.helpers import logger
-from neurons.problem_generation import generate_problem_statement
-from sweagent.environment.swe_env import EnvironmentArguments, SWEEnv
 from taogod.base.validator import BaseValidatorNeuron, TaskType
-from taogod.code_compare import new_compare
+from taogod.helpers.classes import GeneratedProblemStatement, ProblemGeneratorParameters, ValidatorModelStats, \
+    IngestionHeuristics, IssueSolution
+from taogod.helpers.constants import SENTINEL_FLOAT_FAILURE_VALUE, SENTINEL_INT_FAILURE_VALUE, \
+    SENTINEL_STRING_FAILURE_VALUE
+from taogod.helpers.helpers import clone_repo, repeat_list, highest_cosine_filepair_selector
 from taogod.protocol import CodingTask
-from taogod.s3_utils import download_repo_locally
 from taogod.synthetic_testing import apply_patch, compare_test_results, run_tests
 from taogod.utils.uids import check_uid_availability
+from taogod.validator.generate_problem import generate_problem_statements
+from taogod.validator.grade_output import grade_miner_solution
+from taogod.validator.ingest import get_all_filepairs
 
-CODINGTASK_TIMEOUT_MINS: float = 30.0
+CODINGTASK_TIMEOUT_MINS: Final[float] = 30.
+
+PROBLEM_STATEMENT_TEMPLATE: Final[Template] = Template(
+    dedent("""
+    You are a skilled software engineering assistant. You will be provided with multiple files as context. Each file will contain portions of code, documentation, or relevant information about a software system. Your task is to come up with a specific software engineering problem that requires a solution to involve at least two of these files. You will generate a list of these problems, in the generated_problems array response.
+
+    Further, once you have a problem statement, generate a checklist of points to consider and things that should be present in the solution (for example, are the correct Github API calls made if its a function that interfaces with the api). Generate several of these into dynamic_checklist field.
+    Some additional guidelines are:
+    - Do not output anything other than software engineering problem
+    - The problem description should be very detailed and meticulous. It should contain sufficient context such that someone equipped with the codebase and your problem statement will have enough information to implement
+    - The problem should be solvable by an autonomous SWE which can do things like installing PyPi packages, but cannot do things like make cloud provider accounts and register for other services manually.
+    - The problem should not be overly difficult to implement, and should be fairly easy and not take too many LLM calls. 
+    - Do not disclose which files would need to be modified to solve the problem.
+
+    Here are the files:
+    {% for file in files %}
+    Filename: {{ file.path }}
+    ```python3
+    {{ file.contents }}
+    ```
+    {% endfor %}
+    ```
+    """)
+)
+
+GRADER_SYSTEM_PROMPT: Final[str] = """
+Instructions:
+    You are tasked with evaluating a code patch to determine how well it addresses a specific problem. Please follow these steps:
+    Read the Problem Statement to understand the issue that needs to be resolved.
+    Review the Git Diff to see the changes introduced by the patch.
+    Examine the Affected Files to understand the context of the changes.
+Your Task:
+    Assess the patch for correctness, completeness, and effectiveness in solving the problem.
+    Fill out each field (addresses problem in statement, whether its a logical or dumb solution, brevity and how clean the code is, and how likely it is to introduce other bugs)
+    Consider any potential side effects or issues introduced by the patch.
+    Grade a concise solution higher than a lengthy one assuming both are correct and complete.
+    Provide a percentage numerical score between 0 and 1 representing how well the patch solves the problem:
+    1 means the patch perfectly and completely solves the problem.
+    0 means the patch does not address the problem at all.
+    If you do not know for sure that the patch perfectly and completely solved the problem, do not give it 1. Instead, give it some value between 0 and 1. Be harshly critical of the submissions you receive, think carefully to find ways in which they may have issues, and make sure the score is reduced appropriately. You will be penalized more harshly if you give scores that are too high than scores that are too low, so bias on the side of giving lower scores.
+"""
 
 
 def exponential_decay(N, x):
@@ -56,6 +98,72 @@ def exponential_decay(N, x):
     if x >= N:
         return 0
     return math.exp(-x / (N - x))
+
+def create_problem_statements(
+    config: Dict,
+    repo: str,
+    local_repo_dir: Path,
+    problems: Union[int, List[str]],
+    ingestion_heuristics: IngestionHeuristics
+) -> List[GeneratedProblemStatement]:
+    if isinstance(problems, int):
+        problem_generator_params = ProblemGeneratorParameters(
+            filepair_selection_logic=highest_cosine_filepair_selector,
+            prompt_template=PROBLEM_STATEMENT_TEMPLATE,
+            num_problems_to_gen=problems,
+            problem_gen_model=config[repo]["validator_llm"]
+        )
+
+        problem_statements: List[GeneratedProblemStatement] = generate_problems_for_single_repo(
+            repo_path=local_repo_dir,
+            ingestion_heuristics=ingestion_heuristics,
+            problem_generation_params=problem_generator_params
+        )
+
+    elif isinstance(problems, list) and all(isinstance(text, str) for text in problems):
+        problem_statements: List[GeneratedProblemStatement] = [
+            GeneratedProblemStatement(
+                prompt=SENTINEL_STRING_FAILURE_VALUE,
+                model=SENTINEL_STRING_FAILURE_VALUE,
+                problem_statement=text,
+                dynamic_checklist=[],
+                model_stats=ValidatorModelStats(
+                    input_tokens=SENTINEL_INT_FAILURE_VALUE,
+                    output_tokens=SENTINEL_INT_FAILURE_VALUE,
+                    cost=SENTINEL_FLOAT_FAILURE_VALUE,
+                )
+            ) for text in problems
+        ]
+
+        if "repeat" in config[repo] and config[repo]["repeat"] is not None:
+            num_repeats = int(config[repo]["repeat"])
+            problem_statements = repeat_list(problem_statements, num_repeats)
+
+    else:
+        raise ValueError(
+            f"config[{repo}]['problems'] must be a list of strings or an integer. "
+            f"Current value of `{config[repo]['problems']}` is invalid"
+        )
+    return problem_statements
+
+
+def generate_problems_for_single_repo(
+    repo_path: Path,
+    ingestion_heuristics: IngestionHeuristics,
+    problem_generation_params: ProblemGeneratorParameters
+) -> List[GeneratedProblemStatement]:
+    file_pairs = get_all_filepairs(
+        repo_path,
+        heuristics=ingestion_heuristics,
+        refresh=False
+    )
+
+    # Generate one problem statement, with prompt and model to benchmark
+    problem_statements_list = generate_problem_statements(
+        filepairs=file_pairs,
+        parameters=problem_generation_params
+    )
+    return problem_statements_list
 
 
 class Validator(BaseValidatorNeuron):
@@ -86,7 +194,6 @@ class Validator(BaseValidatorNeuron):
             env = SWEEnv(env_args)
             env.reset(0)
             # Apply patches
-            apply_patch(env, test_patch)
             apply_patch(env, response)
 
             # Run tests after applying patches
@@ -101,81 +208,76 @@ class Validator(BaseValidatorNeuron):
 
     @staticmethod
     async def calculate_rewards(
-        challenge: LabelledIssueTask, 
-        responses: List[str],
+        repo: str,
+        problem: GeneratedProblemStatement,
+        issue_solutions: List[IssueSolution],
         process_times: List[float],
-        codebase: Path,
-        test_patch: str,
     ) -> np.ndarray:
         """
         Validate the responses from the miners. This function should score the responses and return a list of rewards for each miner.
-
-        Args:
-            challenge (LabelledIssueTask): The challenge task.
-            responses (List[str]): The responses from the miners.
-            codebase (Path): The path to the codebase.
-            test_patch (str): The test patch to apply.
         """
         llm_evals = np.array([
-            new_compare(challenge.problem_statement, response, codebase)
-            for response in responses
+            grade_miner_solution(
+                repo,
+                problem,
+                issue_solution,
+            )
+            for issue_solution in issue_solutions
         ])
-
-        with open("env_setup.yaml", "w") as f:
-            yaml.safe_dump(challenge.environment_setup, f)
-
-        env_setup_path = Path.cwd() / "env_setup.yaml"
 
         response_times = np.array([
             exponential_decay(CODINGTASK_TIMEOUT_MINS*60, time)
             for time in process_times
         ])
 
-        ## Synthetic testing
-        env_args = EnvironmentArguments(
-                image_name="sweagent/swe-agent:latest",
-                data_path="text://example.json", # Doesnt matter for tests
-                repo_path=str(codebase),
-                verbose=True,
-                environment_setup=str(env_setup_path),
-            )
-        env = SWEEnv(env_args)
-        env.reset(0)
+        # Commented out for now
+        # ## Synthetic testing
+        # env_args = EnvironmentArguments(
+        #         image_name="sweagent/swe-agent:latest",
+        #         data_path="text://example.json", # Doesnt matter for tests
+        #         repo_path=str(codebase),
+        #         verbose=True,
+        #         environment_setup=str(env_setup_path),
+        #     )
+        # env = SWEEnv(env_args)
+        # env.reset(0)
+        #
+        # tests_before = run_tests(env)
+        #
+        # # Share `tests_before` and other data across processes by making them part of the input arguments
+        # tasks = [(response, env_args, tests_before) for response in responses]
+        #
+        # with ThreadPoolExecutor() as executor:
+        #     synthetic_tests = list(executor.map(Validator.process_response_wrapper, tasks))
+        #
+        # syn_tests_arr = np.array([])
+        # for test in synthetic_tests:
+        #     if test is None: np.append(syn_tests_arr, 0.0)
+        #     else:
+        #         syn_tests_arr = np.append(
+        #             syn_tests_arr,
+        #             2 * int(len(test["PASS_TO_FAIL"]) == 0)
+        #             + int(len(test["FAIL_TO_PASS"]) >= 0)
+        #             + 3 * int(len(test["NEW_FAIL"]) == 0)
+        #         )
+        #
+        # os.remove(env_setup_path)
 
-        tests_before = run_tests(env)
-
-        # Share `tests_before` and other data across processes by making them part of the input arguments
-        tasks = [(response, env_args, test_patch, tests_before) for response in responses]
-
-        with ThreadPoolExecutor() as executor:
-            synthetic_tests = list(executor.map(Validator.process_response_wrapper, tasks))
-
-        syn_tests_arr = np.array([])
-        for test in synthetic_tests:
-            if test is None: np.append(syn_tests_arr, 0.0)
-            else:
-                syn_tests_arr = np.append(
-                    syn_tests_arr, 
-                    2 * int(len(test["PASS_TO_FAIL"]) == 0) 
-                    + int(len(test["FAIL_TO_PASS"]) >= 0) 
-                    + 3 * int(len(test["NEW_FAIL"]) == 0)
-                )
-
-        os.remove(env_setup_path)
-
-        return llm_evals + syn_tests_arr + response_times
+        return llm_evals + response_times
     
     # TODO: Add more fields once components of scoring are named
     async def upload_solution(
             self,
             problem_statement: str,
-            responses: List[str],
+            responses: List[IssueSolution],
             rewards_list: List[float],
             hotkeys: List[str],
     ):
         """
         Upload the closed issue to the data endpoint.
         """
+        response_patches = [response.patch for response in responses]
+
         keypair = self.dendrite.keypair
         hotkey = keypair.ss58_address
         signature = f"0x{keypair.sign(hotkey).hex()}"
@@ -191,7 +293,7 @@ class Validator(BaseValidatorNeuron):
                     response_patch,
                     response_score,
                     miner_hotkey
-                    in zip(responses, rewards_list, hotkeys)
+                    in zip(response_patches, rewards_list, hotkeys)
                 ]
                 async with session.post(
                     url=UPLOAD_ISSUE_ENDPOINT,
@@ -227,46 +329,49 @@ class Validator(BaseValidatorNeuron):
 
         axons = [self.metagraph.axons[uid] for uid in miner_uids]
 
+        logger.info(f"Current step={self.step}...")
 
-        task_types = [LabelledIssueTask]
-        task_type = LabelledIssueTask
+        current_dir = Path.cwd()
+        repo = "TODO"
+        config = {}  # TODO
 
-        logger.info(f"Current step={self.step}, tasks that will be assigned are: {[t.__name__ for t in task_types]}...")
+        ingestion_heuristics = IngestionHeuristics(
+            min_files_to_consider_dir_for_problems=3,
+            min_file_content_len=50,
+        )
 
+        author_name, repo_name = repo.split("/")
 
-        logger.info(f"Fetching {task_type.__name__} from {DATA_ENDPOINT_BY_TASK[task_type]} ...")
-        response = requests.get(DATA_ENDPOINT_BY_TASK[task_type]).json()
-        logger.info(f"Unparsed response keys: {response.keys()}")
+        logger.info(f"Cloning repo {repo}...")
+        local_repo_dir = clone_repo(author_name, repo_name, current_dir.parent)
+        logger.info(f"Finished cloning repo {repo}")
 
-        logger.info(f"Fetched {task_type.__name__} from {DATA_ENDPOINT_BY_TASK[task_type]} ."
-                    f" Parsing task...")
+        num_problems_to_gen = 1
+        problems: List[GeneratedProblemStatement] = create_problem_statements(
+            config, repo, local_repo_dir, num_problems_to_gen, ingestion_heuristics
+        )
+        problem = problems[0]
+        logger.info(f"Problem statement is: {problem[:50]}...")
 
-        code_challenge = task_type.model_validate(response)
-        logger.info(f"Parsed {task_type.__name__}. S3 url: {code_challenge.s3_repo_url}")
+        # todo: create proper task ID
+        task_id = f"{repo}-{problem.problem_statement[:10]}"
 
-        local_path = download_repo_locally(code_challenge.s3_repo_url)
-        # Generate test patch and problem statement
-        # TODO: Yoruba
-        code_challenge.problem_statement, test_patch = generate_problem_statement(local_path)
-        logger.info(f"Changed code_challenge.problem_statement to: {code_challenge.problem_statement}")
-
-        logger.info(f"Sending task {code_challenge.s3_repo_url} to miners, ...")
+        logger.info(f"Sending task {task_id} to miners, ...")
         responses: List[CodingTask] = await self.dendrite(
             axons=axons,
             synapse=CodingTask(
-                problem_statement=code_challenge.problem_statement,
-                s3_code_link=code_challenge.s3_repo_url,
-                environment_setup=code_challenge.environment_setup,
+                repo=repo,
+                problem_statement=problem.problem_statement,
                 patch=None,
             ),
             deserialize=False,
             timeout=timedelta(minutes=CODINGTASK_TIMEOUT_MINS).total_seconds(), # TODO: need a better timeout method
         )
-        logger.info(f"Received patches from miners for task {code_challenge.s3_repo_url}: "
+        logger.info(f"Received patches from miners for task {task_id}: "
                     f"{[(r.patch[:100] + '...' if r.patch else r.patch) for r in responses]}")
 
         working_miner_uids: List[int] = []
-        finished_responses: List[str] = []
+        finished_responses: List[IssueSolution] = []
         process_times: List[float] = []
 
         logger.info("Checking which received patches are valid...")
@@ -279,7 +384,7 @@ class Validator(BaseValidatorNeuron):
                 logger.info(f"Miner with hotkey {response.axon.hotkey} gave a valid response/patch")
                 uid = next(uid for uid, axon in zip(miner_uids, axons) if axon.hotkey == response.axon.hotkey)
                 working_miner_uids.append(uid)
-                finished_responses.append(response.patch)
+                finished_responses.append(IssueSolution(response.patch))
                 process_times.append(response.dendrite.process_time)
 
         if len(working_miner_uids) == 0:
@@ -288,32 +393,30 @@ class Validator(BaseValidatorNeuron):
         
         # TODO: Add punishment for miners who did not respond
 
-        logger.info(f"Running task-specific handlers for {task_type.__name__}")
+        logger.info(f"Running task-specific handlers for {task_id}")
         await self.handle_synthetic_patch_response(
-            code_challenge, 
+            repo,
+            problem,
             finished_responses, 
             process_times,
-            working_miner_uids, 
-            local_path, 
-            test_patch
+            working_miner_uids,
         )
 
 
     async def handle_synthetic_patch_response(
-        self, 
-        code_challenge: LabelledIssueTask, 
-        finished_responses: List[str],
+        self,
+        repo: str,
+        problem: GeneratedProblemStatement,
+        finished_responses: List[IssueSolution],
         process_times: List[float], 
         working_miner_uids: List[int], 
-        local_path: Path, test_patch: str,
     ) -> None:
         try:
             rewards_list = await Validator.calculate_rewards(
-                code_challenge, 
+                repo,
+                problem,
                 finished_responses, 
                 process_times,
-                local_path, 
-                test_patch
             )
         except Exception:
             logger.exception("Error calculating rewards")
@@ -330,10 +433,9 @@ class Validator(BaseValidatorNeuron):
 
         try:
             await self.upload_solution(
-                code_challenge.problem_statement,
+                problem.problem_statement,
                 finished_responses,
-                process_times,
-                rewards_list,
+                rewards_list.tolist(),
                 [self.metagraph.S[uid].hotkey for uid in working_miner_uids],
             )
         except Exception:

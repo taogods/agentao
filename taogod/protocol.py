@@ -37,9 +37,6 @@ class CodingTask(bt.Synapse):
     # The issue description
     problem_statement: str
 
-    # The setup for the environment to run the code successfully
-    environment_setup: Dict[str, Any]
-
     # The solution to the challenge, filled by the miner
     patch: Optional[str] = ""
     ###########################################################################

@@ -241,13 +241,15 @@ class BaseValidatorNeuron(BaseNeuron):
                 f"Scores contain NaN values. This may be due to a lack of responses from miners, or a bug in your reward functions."
             )
 
-        CLOSED_PR_PCT = 0.3
-        OPEN_PR_PCT = 0.7 
+        # TODO: Migrate to open PR scores
+        CLOSED_PR_PCT = 1.
+        OPEN_PR_PCT = 0.
         # Calculate the average reward for each uid across non-zero values.
         # Replace any NaN values with 0.
         # Compute the norm of the scores
         raw_weights_closed = normalize(self.scores, p=1, dim=0) * CLOSED_PR_PCT
         raw_weights_open = normalize(self.pr_scores, p=1, dim=0) * OPEN_PR_PCT
+
         raw_weights = raw_weights_closed + raw_weights_open
 
         if raw_weights.shape[0] > self.metagraph.uids.shape[0]:
