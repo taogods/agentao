@@ -91,6 +91,7 @@ setup(
         "openai>=1.0.0",
         "pygithub",
         "pytz",
+        "posthog",
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",

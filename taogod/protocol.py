@@ -15,8 +15,10 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import typing
+from typing import Dict, Any, Optional
+
 import bittensor as bt
+
 
 class CodingTask(bt.Synapse):
     """
@@ -30,17 +32,16 @@ class CodingTask(bt.Synapse):
     """
 
     ########################## Payload definition ##############################
+    repo: str  # Format: <author>/<name>
+
     # The issue description
     problem_statement: str
 
-    # Link to S3 bucket containing code
-    s3_code_link: str
-
     # The setup for the environment to run the code successfully
-    environment_setup: dict
+    environment_setup: Dict[str, Any]
 
     # The solution to the challenge, filled by the miner
-    patch: typing.Optional[str] = ''
+    patch: Optional[str] = ""
     ###########################################################################
 
     def deserialize(self) -> str:

@@ -14,22 +14,25 @@
 # DEALINGS IN THE SOFTWARE.
 
 import argparse
-import logging
 import os
-import typing
-from datetime import datetime
-from pathlib import Path
-
-import pytz
 import time
-import yaml
+from pathlib import Path
+from typing import Dict, Final, List, Tuple
 
 import taogod
 from taogod.base.miner import BaseMinerNeuron
-from taogod.miner_utils import UnsolvedIssue, generate_code_patch
-from taogod.s3_utils import download_repo_locally
+from taogod.helpers.classes import UnsolvedIssue
+from taogod.helpers.clients import logger
+from taogod.helpers.helpers import clone_repo
+from taogod.miner.generate_solution import generate_code_patch
 
-from neurons.helpers import logger
+
+# TODO: Migrate to use SWEBench setup
+# TODO: Verify the path here works
+REPO_TO_ENV_SETUP: Final[Dict[str, Path]] = {
+    "seaborn": Path("../taogod/env_setup/seaborn.yaml")
+}
+
 
 class Miner(BaseMinerNeuron):
     """
@@ -68,40 +71,49 @@ class Miner(BaseMinerNeuron):
         """
         # if patch.txt exists return that
         logger.info("Starting miner forward pass...")
-        logger.info(f"Received a request with data: {synapse.s3_code_link}")
+        logger.info(f"Received a request with repo: {synapse.repo}, problem statement: {synapse.problem_statement[:50]}...")
+
+        current_dir = Path.cwd()
+
         try:
+            repo = synapse.repo
+            author_name, repo_name = repo.split("/")
 
             jobs_dir = Path("jobs")
             jobs_dir.mkdir(parents=True, exist_ok=True)
             logger.info(f"Using {jobs_dir.absolute()} as the directory for code repositories")
 
-            local_code_path = download_repo_locally(synapse.s3_code_link, jobs_dir)
-            with open("env_setup.yaml", "w") as f:
-                yaml.safe_dump(synapse.environment_setup, f)
+            logger.info(f"Cloning repo {repo}...")
+            local_repo_dir = clone_repo(author_name, repo_name, current_dir.parent)
+            logger.info(f"Finished cloning repo {repo}")
 
-            env_setup_path = Path.cwd() / Path("env_setup.yaml")
-            
+            if repo not in REPO_TO_ENV_SETUP:
+                raise ValueError(
+                    f"Repo {repo} is not configured on miner. "
+                    f"Please provide an environment setup file in REPO_TO_ENV_SETUP"
+                )
+
+            env_setup_path = REPO_TO_ENV_SETUP[repo]
+
             synapse.patch = generate_code_patch(
                 self.model_name, 
-                self.instance_cost,
                 UnsolvedIssue(
-                    desc=synapse.problem_statement, local_code_path=local_code_path,
-                    env_setup_path=env_setup_path,
+                    desc=synapse.problem_statement,
+                    local_code_path=local_repo_dir,
+                    env_setup_path=env_setup_path
                 )
             ).patch
-            logger.info("Finished generating code patch")
+            logger.info(f"Finished generating code patch for repo {synapse.repo}")
 
-            os.remove(env_setup_path)
-
-            logger.info("Exiting miner forward pass")
+            logger.info(f"Exiting miner forward pass for repo {synapse.repo}")
             logger.debug(f"Returning patch: {synapse.patch}")
             return synapse
         except Exception:
-            logger.exception(f"Error processing request")
+            logger.exception("Error processing request")
 
     async def blacklist(
         self, synapse: taogod.protocol.CodingTask
-    ) -> typing.Tuple[bool, str]:
+    ) -> Tuple[bool, str]:
         """
         Determines whether an incoming request should be blacklisted and thus ignored. Your implementation should
         define the logic for blacklisting requests based on your needs and desired security parameters.
@@ -125,7 +137,7 @@ class Miner(BaseMinerNeuron):
         - Reject if the hotkey is not a registered entity within the metagraph.
         - Consider blacklisting entities that are not validators or have insufficient stake.
 
-        In practice it would be wise to blacklist requests from entities that are not validators, or do not have
+        In practice, it would be wise to blacklist requests from entities that are not validators, or do not have
         enough stake. This can be checked via metagraph.S and metagraph.validator_permit. You can always attain
         the uid of the sender via a metagraph.hotkeys.index( synapse.dendrite.hotkey ) call.
 
@@ -198,7 +210,7 @@ class Miner(BaseMinerNeuron):
         return priority
 
 
-AVAILABLE_MODELS: typing.Final[typing.List[str]] = [
+AVAILABLE_MODELS: Final[List[str]] = [
     "gpt4",
     "gpt4-legacy",
     "gpt4-0125",
@@ -216,7 +228,7 @@ AVAILABLE_MODELS: typing.Final[typing.List[str]] = [
     "claude-sonnet-3.5",
 ]
 
-MODEL_CRED_ENVARS: typing.Final[typing.List[str]] = [
+MODEL_CRED_ENVARS: Final[List[str]] = [
     "GITHUB_TOKEN",
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
