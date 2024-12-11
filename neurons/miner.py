@@ -30,7 +30,7 @@ from taogod.miner.generate_solution import generate_code_patch
 # TODO: Migrate to use SWEBench setup
 # TODO: Verify the path here works
 REPO_TO_ENV_SETUP: Final[Dict[str, Path]] = {
-    "seaborn": Path("../taogod/env_setup/seaborn.yaml")
+    "mwaskom/seaborn": Path("./taogod/env_setup/seaborn.yaml")
 }
 
 
@@ -96,7 +96,7 @@ class Miner(BaseMinerNeuron):
             env_setup_path = REPO_TO_ENV_SETUP[repo]
 
             synapse.patch = generate_code_patch(
-                self.model_name, 
+                self.model_name,
                 UnsolvedIssue(
                     desc=synapse.problem_statement,
                     local_code_path=local_repo_dir,

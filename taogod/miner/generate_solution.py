@@ -87,7 +87,7 @@ def create_script_arguments(
         unsolved_issue: UnsolvedIssue,
         instance_cost_limit: float
 ) -> ScriptArguments:
-    swe_agent_root = Path("../SWE-agent")
+    swe_agent_root = Path("../../SWE-agent")
     return ScriptArguments(
         environment=EnvironmentArguments(
             image_name="sweagent/swe-agent:latest",

@@ -1,6 +1,7 @@
 import csv
 import itertools
 import json
+import shutil
 import textwrap
 from pathlib import Path
 from pprint import pformat
@@ -8,6 +9,7 @@ from statistics import mean
 from typing import List, Dict, Union, TypedDict
 
 import yaml
+from git import Repo
 from tabulate import tabulate
 
 from taogod.helpers.classes import FilePair, MinerOutputScore, FullyScoredProblem, convert_to_obj

@@ -33,7 +33,7 @@ from taogod.helpers.classes import GeneratedProblemStatement, ProblemGeneratorPa
     IngestionHeuristics, IssueSolution
 from taogod.helpers.constants import SENTINEL_FLOAT_FAILURE_VALUE, SENTINEL_INT_FAILURE_VALUE, \
     SENTINEL_STRING_FAILURE_VALUE
-from taogod.helpers.helpers import clone_repo, repeat_list, highest_cosine_filepair_selector
+from taogod.helpers.helpers import clone_repo, highest_cosine_filepair_selector, compute_overall_score
 from taogod.protocol import CodingTask
 from taogod.synthetic_testing import apply_patch, compare_test_results, run_tests
 from taogod.utils.uids import check_uid_availability
@@ -100,7 +100,7 @@ def exponential_decay(N, x):
     return math.exp(-x / (N - x))
 
 def create_problem_statements(
-    config: Dict,
+    validator_llm: str,
     repo: str,
     local_repo_dir: Path,
     problems: Union[int, List[str]],
@@ -111,7 +111,7 @@ def create_problem_statements(
             filepair_selection_logic=highest_cosine_filepair_selector,
             prompt_template=PROBLEM_STATEMENT_TEMPLATE,
             num_problems_to_gen=problems,
-            problem_gen_model=config[repo]["validator_llm"]
+            problem_gen_model=validator_llm,
         )
 
         problem_statements: List[GeneratedProblemStatement] = generate_problems_for_single_repo(
@@ -135,14 +135,11 @@ def create_problem_statements(
             ) for text in problems
         ]
 
-        if "repeat" in config[repo] and config[repo]["repeat"] is not None:
-            num_repeats = int(config[repo]["repeat"])
-            problem_statements = repeat_list(problem_statements, num_repeats)
 
     else:
         raise ValueError(
             f"config[{repo}]['problems'] must be a list of strings or an integer. "
-            f"Current value of `{config[repo]['problems']}` is invalid"
+            f"Current value of `{problems}` is invalid"
         )
     return problem_statements
 
@@ -217,11 +214,11 @@ class Validator(BaseValidatorNeuron):
         Validate the responses from the miners. This function should score the responses and return a list of rewards for each miner.
         """
         llm_evals = np.array([
-            grade_miner_solution(
+            compute_overall_score(grade_miner_solution(
                 repo,
                 problem,
                 issue_solution,
-            )
+            ))
             for issue_solution in issue_solutions
         ])
 
@@ -332,8 +329,9 @@ class Validator(BaseValidatorNeuron):
         logger.info(f"Current step={self.step}...")
 
         current_dir = Path.cwd()
-        repo = "TODO"
-        config = {}  # TODO
+        # TODO: Make this dynamic
+        repo = "mwaskom/seaborn"
+        validator_llm = "gpt4omini"
 
         ingestion_heuristics = IngestionHeuristics(
             min_files_to_consider_dir_for_problems=3,
@@ -348,10 +346,10 @@ class Validator(BaseValidatorNeuron):
 
         num_problems_to_gen = 1
         problems: List[GeneratedProblemStatement] = create_problem_statements(
-            config, repo, local_repo_dir, num_problems_to_gen, ingestion_heuristics
+            validator_llm, repo, local_repo_dir, num_problems_to_gen, ingestion_heuristics
         )
-        problem = problems[0]
-        logger.info(f"Problem statement is: {problem[:50]}...")
+        problem: GeneratedProblemStatement = problems[0]
+        logger.info(f"Problem statement is: {problem.problem_statement[:50]}...")
 
         # todo: create proper task ID
         task_id = f"{repo}-{problem.problem_statement[:10]}"
@@ -431,15 +429,16 @@ class Validator(BaseValidatorNeuron):
             TaskType.LABELLED_ISSUE
         )
 
-        try:
-            await self.upload_solution(
-                problem.problem_statement,
-                finished_responses,
-                rewards_list.tolist(),
-                [self.metagraph.S[uid].hotkey for uid in working_miner_uids],
-            )
-        except Exception:
-            logger.exception("Error uploading solution")
+        # Crashing due to error: "AttributeError: 'numpy.float32' object has no attribute 'hotkey'"
+        # try:
+        #     await self.upload_solution(
+        #         problem.problem_statement,
+        #         finished_responses,
+        #         rewards_list.tolist(),
+        #         [self.metagraph.S[uid].hotkey for uid in working_miner_uids],
+        #     )
+        # except Exception:
+        #     logger.exception("Error uploading solution")
 
 
 # The main function parses the configuration and runs the validator.

@@ -93,6 +93,7 @@ setup(
         "pytz",
         "posthog",
         "tiktoken",
+        "GitPython",
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",

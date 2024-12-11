@@ -56,7 +56,6 @@ Affected Files:
 {affected_files} 
 """
 
-
 def grade_miner_solution(
     repo: str,
     generated_problem_statement: GeneratedProblemStatement,
