@@ -30,7 +30,7 @@ import math
 from neurons.classes import LabelledIssueTask
 from neurons.constants import DATA_ENDPOINT_BY_TASK, UPLOAD_ISSUE_ENDPOINT
 from neurons.helpers import logger
-from neurons.problem_generation import generate_problem_statement
+from neurons.problem_generation import GeneratedProblemStatement, generate_problem_statement
 from sweagent.environment.swe_env import EnvironmentArguments, SWEEnv
 from taogod.base.validator import BaseValidatorNeuron, TaskType
 from taogod.code_compare import new_compare
@@ -81,12 +81,11 @@ class Validator(BaseValidatorNeuron):
         A wrapper function to handle multiprocessing safely.
         Takes a tuple of arguments to pass to the `process_response` function.
         """
-        response, env_args, test_patch, tests_before = args
+        response, env_args, tests_before = args
         try:
             env = SWEEnv(env_args)
             env.reset(0)
             # Apply patches
-            apply_patch(env, test_patch)
             apply_patch(env, response)
 
             # Run tests after applying patches
@@ -101,11 +100,11 @@ class Validator(BaseValidatorNeuron):
 
     @staticmethod
     async def calculate_rewards(
-        challenge: LabelledIssueTask, 
+        environment_setup: dict,
+        generated_problem_statement: GeneratedProblemStatement,
         responses: List[str],
         process_times: List[float],
         codebase: Path,
-        test_patch: str,
     ) -> np.ndarray:
         """
         Validate the responses from the miners. This function should score the responses and return a list of rewards for each miner.
@@ -117,12 +116,15 @@ class Validator(BaseValidatorNeuron):
             test_patch (str): The test patch to apply.
         """
         llm_evals = np.array([
-            new_compare(challenge.problem_statement, response, codebase)
+            # TODO: Report more transparently here?
+            new_compare(generated_problem_statement, response, codebase).total_score
             for response in responses
         ])
 
+
+
         with open("env_setup.yaml", "w") as f:
-            yaml.safe_dump(challenge.environment_setup, f)
+            yaml.safe_dump(environment_setup, f)
 
         env_setup_path = Path.cwd() / "env_setup.yaml"
 
@@ -145,7 +147,7 @@ class Validator(BaseValidatorNeuron):
         tests_before = run_tests(env)
 
         # Share `tests_before` and other data across processes by making them part of the input arguments
-        tasks = [(response, env_args, test_patch, tests_before) for response in responses]
+        tasks = [(response, env_args, tests_before) for response in responses]
 
         with ThreadPoolExecutor() as executor:
             synthetic_tests = list(executor.map(Validator.process_response_wrapper, tasks))
@@ -246,8 +248,8 @@ class Validator(BaseValidatorNeuron):
 
         local_path = download_repo_locally(code_challenge.s3_repo_url)
         # Generate test patch and problem statement
-        # TODO: Yoruba
-        code_challenge.problem_statement, test_patch = generate_problem_statement(local_path)
+        gen_problem_statement = generate_problem_statement(local_path)
+        code_challenge.problem_statement = gen_problem_statement.problem_statement
         logger.info(f"Changed code_challenge.problem_statement to: {code_challenge.problem_statement}")
 
         logger.info(f"Sending task {code_challenge.s3_repo_url} to miners, ...")
@@ -290,30 +292,31 @@ class Validator(BaseValidatorNeuron):
 
         logger.info(f"Running task-specific handlers for {task_type.__name__}")
         await self.handle_synthetic_patch_response(
-            code_challenge, 
+            gen_problem_statement,
+            code_challenge.environment_setup,
             finished_responses, 
             process_times,
             working_miner_uids, 
             local_path, 
-            test_patch
         )
 
 
     async def handle_synthetic_patch_response(
         self, 
-        code_challenge: LabelledIssueTask, 
+        generated_problem_statement: GeneratedProblemStatement,
+        environment_setup: dict,
         finished_responses: List[str],
         process_times: List[float], 
         working_miner_uids: List[int], 
-        local_path: Path, test_patch: str,
+        local_path: Path,
     ) -> None:
         try:
             rewards_list = await Validator.calculate_rewards(
-                code_challenge, 
+                generated_problem_statement,
+                environment_setup,
                 finished_responses, 
                 process_times,
                 local_path, 
-                test_patch
             )
         except Exception:
             logger.exception("Error calculating rewards")
@@ -330,7 +333,7 @@ class Validator(BaseValidatorNeuron):
 
         try:
             await self.upload_solution(
-                code_challenge.problem_statement,
+                generated_problem_statement.problem_statement,
                 finished_responses,
                 process_times,
                 rewards_list,

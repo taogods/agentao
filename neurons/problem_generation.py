@@ -28,6 +28,12 @@ class EmbeddedFile:
     contents: str
     embedding: list
 
+    def __str__(self):
+        return f"File: {self.path}, Length: {len(self.contents)}"
+
+    def __repr__(self) -> str:
+        return f"File: {self.path}, Length: {len(self.contents)}"
+
 
 @dataclass
 class FilePair:
@@ -205,29 +211,6 @@ def evaluate_for_context(dir_path, repo_structure):
         return most_similar_files
     else:
         return []
-
-
-def get_sample_files(local_repo: Path) -> List[File]:
-    repo_structure = walk_repository(local_repo)
-
-    file_pairs = []
-    for dir_path, contents in repo_structure.items():
-        full_path = os.path.join(local_repo, dir_path) if dir_path else local_repo
-        if contents['files']:
-            file_pairs.append(evaluate_for_context(full_path, contents))
-
-    valid_pairs = [pair for pair in file_pairs if pair and isinstance(pair, FilePair)]
-    if not valid_pairs:
-        raise ValueError("No valid file pairs found in the repository. Ensure there are directories with 5+ Python files.")
-    
-    selected_file_pair = sorted(
-        valid_pairs,
-        key=lambda x: float(x.cosine_similarity),
-        reverse=True
-    )[0]  # Get the top pair
-
-    logger.info(f"Selected file pair to generate prompt for: {[f.path for f in selected_file_pair.files]}")
-    return [File(path=Path(f.path), contents=f.contents) for f in selected_file_pair.files]
 
 def highest_cosine_filepair_selector(file_pairs: List[FilePair]) -> FilePair:
     selected_file_pair = sorted(
