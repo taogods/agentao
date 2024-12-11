@@ -135,8 +135,11 @@ def cosine_similarity(a, b):
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
 
-def evaluate_for_context(dir_path, repo_structure):
-
+def evaluate_for_context(
+        dir_path, 
+        repo_structure,
+        heuristics: IngestionHeuristics
+    ):
     def _retrieve_files_in_dir():
         # Get all files in the current directory
         files = []
@@ -151,8 +154,8 @@ def evaluate_for_context(dir_path, repo_structure):
                         'contents': contents
                     }
                 )
-            except (UnicodeDecodeError, IOError) as e:
-                print(f"Warning: Could not read file {path}: {e}")
+            except (UnicodeDecodeError, IOError):
+                logger.exception(f"Warning: Could not read file {path}")
                 continue
 
         return files
@@ -191,8 +194,7 @@ def evaluate_for_context(dir_path, repo_structure):
             files=most_similar_pair
         )
 
-    if len(repo_structure['files']) >= 5:
-        # print(dir_path)
+    if len(repo_structure['files']) >= heuristics.min_files_to_consider_dir_for_problems:
         files = _retrieve_files_in_dir()
         embeddings = _embed_code(list(map(lambda file: file['contents'], files)))
         embedded_files = [
@@ -202,12 +204,11 @@ def evaluate_for_context(dir_path, repo_structure):
                 embedding=embeddings[i]
             )
             for i, file in enumerate(files)
-            if len(file['contents']) > 50
+            if len(file['contents']) > heuristics.min_file_content_len
         ]
 
         most_similar_files = _find_most_similar_files(embedded_files)
 
-        # print(most_similar_files)
         return most_similar_files
     else:
         return []
