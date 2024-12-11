@@ -112,7 +112,7 @@ def remove_comments(patch_content: str) -> str:
     return "\n".join(cleaned_lines)
 
 
-def new_compare(
+def llm_eval(
         generated_problem_statement: GeneratedProblemStatement, 
         patch: str, 
         codebase: Path

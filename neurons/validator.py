@@ -33,7 +33,7 @@ from neurons.helpers import logger
 from neurons.problem_generation import GeneratedProblemStatement, generate_problem_statement
 from sweagent.environment.swe_env import EnvironmentArguments, SWEEnv
 from taogod.base.validator import BaseValidatorNeuron, TaskType
-from taogod.code_compare import new_compare
+from taogod.code_compare import llm_eval
 from taogod.protocol import CodingTask
 from taogod.s3_utils import download_repo_locally
 from taogod.synthetic_testing import apply_patch, compare_test_results, run_tests
@@ -117,7 +117,7 @@ class Validator(BaseValidatorNeuron):
         """
         llm_evals = np.array([
             # TODO: Report more transparently here?
-            new_compare(generated_problem_statement, response, codebase).total_score
+            llm_eval(generated_problem_statement, response, codebase).total_score
             for response in responses
         ])
 

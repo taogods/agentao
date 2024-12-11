@@ -342,6 +342,15 @@ def generate_for_single_repo(
 
 
 def generate_problem_statement(local_repo: Path) -> GeneratedProblemStatement:
+    """
+    Generate a problem statement given the repository.
+
+    Args:
+        local_repo: Path to the local repository.
+
+    Returns:
+        GeneratedProblemStatement: The generated problem statement.
+    """
     problem_generator_params = ProblemGeneratorParameters(
         filepair_selection_logic=highest_cosine_filepair_selector,
         prompt_template=PROBLEM_STATEMENT_TEMPLATE,
