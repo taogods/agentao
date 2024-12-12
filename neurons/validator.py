@@ -429,16 +429,15 @@ class Validator(BaseValidatorNeuron):
             TaskType.LABELLED_ISSUE
         )
 
-        # Crashing due to error: "AttributeError: 'numpy.float32' object has no attribute 'hotkey'"
-        # try:
-        #     await self.upload_solution(
-        #         problem.problem_statement,
-        #         finished_responses,
-        #         rewards_list.tolist(),
-        #         [self.metagraph.S[uid].hotkey for uid in working_miner_uids],
-        #     )
-        # except Exception:
-        #     logger.exception("Error uploading solution")
+        try:
+            await self.upload_solution(
+                problem.problem_statement,
+                finished_responses,
+                rewards_list.tolist(),
+                [self.metagraph.hotkeys[uid] for uid in working_miner_uids],
+            )
+        except Exception:
+            logger.exception("Error uploading solution")
 
 
 # The main function parses the configuration and runs the validator.
