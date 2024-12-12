@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from pprint import pformat
-from typing import List, Final
+from typing import List
 
 from simple_parsing.helpers.flatten import FlattenedAccess
 from simple_parsing.helpers.serialization.serializable import FrozenSerializable
@@ -20,6 +20,7 @@ from sweagent.types import AgentInfo, TrajectoryStep
 
 from taogod.helpers.classes import UnsolvedIssue, IssueSolution, MinerModelStats
 from taogod.helpers.clients import logger
+
 
 @dataclass(frozen=True)
 class ActionsArguments(FlattenedAccess, FrozenSerializable):

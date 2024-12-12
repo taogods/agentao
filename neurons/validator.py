@@ -29,16 +29,15 @@ from sweagent.environment.swe_env import SWEEnv
 from neurons.constants import UPLOAD_ISSUE_ENDPOINT
 from neurons.helpers import logger
 from taogod.base.validator import BaseValidatorNeuron, TaskType
-from taogod.helpers.classes import GeneratedProblemStatement, ProblemGeneratorParameters, ValidatorModelStats, \
-    IngestionHeuristics, IssueSolution
-from taogod.helpers.constants import SENTINEL_FLOAT_FAILURE_VALUE, SENTINEL_INT_FAILURE_VALUE, \
-    SENTINEL_STRING_FAILURE_VALUE
-from taogod.helpers.helpers import clone_repo, highest_cosine_filepair_selector, compute_overall_score
+from taogod.helpers.classes import GeneratedProblemStatement, ProblemGeneratorParameters, IngestionHeuristics, \
+    IssueSolution
+from taogod.helpers.helpers import clone_repo, highest_cosine_filepair_selector
 from taogod.protocol import CodingTask
 from taogod.synthetic_testing import apply_patch, compare_test_results, run_tests
 from taogod.utils.uids import check_uid_availability
 from taogod.validator.generate_problem import generate_problem_statements
-from taogod.validator.grade_output import grade_miner_solution
+from taogod.validator.graders.abstract_grader import MinerSubmission
+from taogod.validator.graders.elo_grader import EloGrader
 from taogod.validator.ingest import get_all_filepairs
 
 CODINGTASK_TIMEOUT_MINS: Final[float] = 30.
@@ -119,23 +118,6 @@ def create_problem_statements(
             ingestion_heuristics=ingestion_heuristics,
             problem_generation_params=problem_generator_params
         )
-
-    elif isinstance(problems, list) and all(isinstance(text, str) for text in problems):
-        problem_statements: List[GeneratedProblemStatement] = [
-            GeneratedProblemStatement(
-                prompt=SENTINEL_STRING_FAILURE_VALUE,
-                model=SENTINEL_STRING_FAILURE_VALUE,
-                problem_statement=text,
-                dynamic_checklist=[],
-                model_stats=ValidatorModelStats(
-                    input_tokens=SENTINEL_INT_FAILURE_VALUE,
-                    output_tokens=SENTINEL_INT_FAILURE_VALUE,
-                    cost=SENTINEL_FLOAT_FAILURE_VALUE,
-                )
-            ) for text in problems
-        ]
-
-
     else:
         raise ValueError(
             f"config[{repo}]['problems'] must be a list of strings or an integer. "
@@ -213,18 +195,14 @@ class Validator(BaseValidatorNeuron):
         """
         Validate the responses from the miners. This function should score the responses and return a list of rewards for each miner.
         """
-        llm_evals = np.array([
-            compute_overall_score(grade_miner_solution(
-                repo,
-                problem,
-                issue_solution,
-            ))
-            for issue_solution in issue_solutions
+        elo_grader = EloGrader()
+        llm_evals = elo_grader.grade([
+            MinerSubmission(repo=repo, problem=problem, solution=issue_solution) for issue_solution in issue_solutions
         ])
 
         response_times = np.array([
-            exponential_decay(CODINGTASK_TIMEOUT_MINS*60, time)
-            for time in process_times
+            exponential_decay(CODINGTASK_TIMEOUT_MINS*60, t)
+            for t in process_times
         ])
 
         # Commented out for now
