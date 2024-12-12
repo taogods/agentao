@@ -72,4 +72,4 @@ def setup_logger():
 
 
 # Initialize the shared logger
-logger = setup_logger()
+LOGGER = setup_logger()

@@ -10,7 +10,7 @@ import tiktoken
 from jinja2 import Template
 import json
 
-from neurons.helpers import logger
+from neurons.helpers import LOGGER
 
 @dataclass
 class File:
@@ -182,7 +182,7 @@ def get_sample_files(local_repo: Path) -> List[File]:
         reverse=True
     )[0]  # Get the top pair
 
-    logger.info(f"Selected file pair to generate prompt for: {[f.path for f in selected_file_pair.files]}")
+    LOGGER.info(f"Selected file pair to generate prompt for: {[f.path for f in selected_file_pair.files]}")
     return [File(path=Path(f.path), contents=f.contents) for f in selected_file_pair.files]
 
 
@@ -200,6 +200,6 @@ def generate_problem_statement(local_repo: Path) -> Tuple[str, str]:
         ]
     )
     response = response_obj.choices[0].message.content
-    logger.info(f"Generated problem statement: {response}")
+    LOGGER.info(f"Generated problem statement: {response}")
     # TODO: YORUBA
     return response, "test_patch"

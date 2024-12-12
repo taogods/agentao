@@ -27,7 +27,7 @@ from jinja2 import Template
 from sweagent.environment.swe_env import SWEEnv
 
 from neurons.constants import UPLOAD_ISSUE_ENDPOINT
-from neurons.helpers import logger
+from neurons.helpers import LOGGER
 from taogod.base.validator import BaseValidatorNeuron, TaskType
 from taogod.helpers.classes import GeneratedProblemStatement, ProblemGeneratorParameters, IngestionHeuristics, \
     IssueSolution
@@ -157,7 +157,7 @@ class Validator(BaseValidatorNeuron):
     def __init__(self, config=None):
         super(Validator, self).__init__(config=config)
 
-        logger.info("load_state()")
+        LOGGER.info("load_state()")
         self.load_state()
 
         # TODO(developer): Anything specific to your use case you can do here
@@ -182,7 +182,7 @@ class Validator(BaseValidatorNeuron):
             results = compare_test_results(tests_before, tests_after)
             return results
         except Exception as e:
-            logger.exception(f"Error in synthetic rewards: {e}")
+            LOGGER.exception(f"Error in synthetic rewards: {e}")
             return None
 
     @staticmethod
@@ -278,7 +278,7 @@ class Validator(BaseValidatorNeuron):
                     response.raise_for_status()
                     _result = await response.json()
         except Exception:
-            logger.exception("Error uploading closed issue")
+            LOGGER.exception("Error uploading closed issue")
         ...
     
     async def forward(self):
@@ -290,21 +290,21 @@ class Validator(BaseValidatorNeuron):
         - Rewarding the miners
         - Updating the scores
         """
-        logger.debug("Starting forward pass...")
+        LOGGER.debug("Starting forward pass...")
 
         miner_uids = [
             uid for uid in range(len(self.metagraph.S))
             if check_uid_availability(self.metagraph, uid, self.config.neuron.vpermit_tao_limit)
         ]
-        logger.info(f"Miner UIDs: {miner_uids}")
+        LOGGER.info(f"Miner UIDs: {miner_uids}")
 
         if len(miner_uids) == 0:
-            logger.info("No miners available to query. Exiting forward pass...")
+            LOGGER.info("No miners available to query. Exiting forward pass...")
             return
 
         axons = [self.metagraph.axons[uid] for uid in miner_uids]
 
-        logger.info(f"Current step={self.step}...")
+        LOGGER.info(f"Current step={self.step}...")
 
         current_dir = Path.cwd()
         # TODO: Make this dynamic
@@ -318,21 +318,21 @@ class Validator(BaseValidatorNeuron):
 
         author_name, repo_name = repo.split("/")
 
-        logger.info(f"Cloning repo {repo}...")
+        LOGGER.info(f"Cloning repo {repo}...")
         local_repo_dir = clone_repo(author_name, repo_name, current_dir.parent)
-        logger.info(f"Finished cloning repo {repo}")
+        LOGGER.info(f"Finished cloning repo {repo}")
 
         num_problems_to_gen = 1
         problems: List[GeneratedProblemStatement] = create_problem_statements(
             validator_llm, repo, local_repo_dir, num_problems_to_gen, ingestion_heuristics
         )
         problem: GeneratedProblemStatement = problems[0]
-        logger.info(f"Problem statement is: {problem.problem_statement[:50]}...")
+        LOGGER.info(f"Problem statement is: {problem.problem_statement[:50]}...")
 
         # todo: create proper task ID
         task_id = f"{repo}-{problem.problem_statement[:10]}"
 
-        logger.info(f"Sending task {task_id} to miners, ...")
+        LOGGER.info(f"Sending task {task_id} to miners, ...")
         responses: List[CodingTask] = await self.dendrite(
             axons=axons,
             synapse=CodingTask(
@@ -343,33 +343,33 @@ class Validator(BaseValidatorNeuron):
             deserialize=False,
             timeout=timedelta(minutes=CODINGTASK_TIMEOUT_MINS).total_seconds(), # TODO: need a better timeout method
         )
-        logger.info(f"Received patches from miners for task {task_id}: "
+        LOGGER.info(f"Received patches from miners for task {task_id}: "
                     f"{[(r.patch[:100] + '...' if r.patch else r.patch) for r in responses]}")
 
         working_miner_uids: List[int] = []
         finished_responses: List[IssueSolution] = []
         process_times: List[float] = []
 
-        logger.info("Checking which received patches are valid...")
+        LOGGER.info("Checking which received patches are valid...")
         for response in responses:
             if not response:
-                logger.info(f"Miner with hotkey {response.axon.hotkey} did not give a response")
+                LOGGER.info(f"Miner with hotkey {response.axon.hotkey} did not give a response")
             elif response.patch in [None, ""] or not response.axon or not response.axon.hotkey:
-                logger.info(f"Miner with hotkey {response.axon.hotkey} gave a response object but no patch")
+                LOGGER.info(f"Miner with hotkey {response.axon.hotkey} gave a response object but no patch")
             else:
-                logger.info(f"Miner with hotkey {response.axon.hotkey} gave a valid response/patch")
+                LOGGER.info(f"Miner with hotkey {response.axon.hotkey} gave a valid response/patch")
                 uid = next(uid for uid, axon in zip(miner_uids, axons) if axon.hotkey == response.axon.hotkey)
                 working_miner_uids.append(uid)
                 finished_responses.append(IssueSolution(response.patch))
                 process_times.append(response.dendrite.process_time)
 
         if len(working_miner_uids) == 0:
-            logger.info("No miners responded. Exiting forward pass...")
+            LOGGER.info("No miners responded. Exiting forward pass...")
             return
         
         # TODO: Add punishment for miners who did not respond
 
-        logger.info(f"Running task-specific handlers for {task_id}")
+        LOGGER.info(f"Running task-specific handlers for {task_id}")
         await self.handle_synthetic_patch_response(
             repo,
             problem,
@@ -395,10 +395,10 @@ class Validator(BaseValidatorNeuron):
                 process_times,
             )
         except Exception:
-            logger.exception("Error calculating rewards")
+            LOGGER.exception("Error calculating rewards")
             return
 
-        logger.info(f"Rewards: {rewards_list}")
+        LOGGER.info(f"Rewards: {rewards_list}")
 
         # reward the miners who succeeded
         self.update_scores(
@@ -415,7 +415,7 @@ class Validator(BaseValidatorNeuron):
                 [self.metagraph.hotkeys[uid] for uid in working_miner_uids],
             )
         except Exception:
-            logger.exception("Error uploading solution")
+            LOGGER.exception("Error uploading solution")
 
 
 # The main function parses the configuration and runs the validator.
