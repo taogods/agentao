@@ -2,9 +2,7 @@ import logging
 import os
 from datetime import datetime
 from logging import Logger
-from typing import Final
 
-import openai
 import posthog
 import pytz
 from dotenv import load_dotenv

@@ -54,5 +54,6 @@ def generate_problem_statements(
                 output_tokens=completion_tokens,
                 cost=cost,
             ),
+            context_files=[file.contents for file in selected_file_pair.files]
         ) for statement in parsed_response
     ]

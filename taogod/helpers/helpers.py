@@ -12,7 +12,7 @@ import yaml
 from git import Repo
 from tabulate import tabulate
 
-from taogod.helpers.classes import FilePair, MinerOutputScore, FullyScoredProblem, convert_to_obj
+from taogod.helpers.classes import FilePair, FloatGraderScore, FullyScoredProblem, convert_to_obj
 from taogod.helpers.clients import logger
 from taogod.helpers.constants import PRICING_DATA_PER_MILLION_TOKENS, SENTINEL_FLOAT_FAILURE_VALUE, \
     SENTINEL_STRING_FAILURE_VALUE
@@ -45,7 +45,7 @@ def clone_repo(author_name: str, repo_name: str, base_path: Path) -> Path:
 
 
 
-def compute_overall_score(miner_output_score: MinerOutputScore) -> float:
+def compute_overall_score(miner_output_score: FloatGraderScore) -> float:
     DYNAMIC_CHECKLIST_WEIGHT = 0.2
     ADDRESSES_PROBLEM_WEIGHT = 0.3
     LOGICAL_SOLUTION_WEIGHT = 0.25

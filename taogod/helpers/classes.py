@@ -1,5 +1,6 @@
 from dataclasses import is_dataclass, dataclass, asdict, fields
 from pathlib import Path
+from textwrap import dedent
 from typing import Any, Dict, TypedDict, Type, TypeVar, Union, get_origin, get_args
 from typing import List, Callable, Optional
 
@@ -110,14 +111,18 @@ class GeneratedProblemStatement:
     model: str
     problem_statement: str
     dynamic_checklist: List[str]
+    context_files: List[str]
     model_stats: Optional[ValidatorModelStats] = None
 
-
-@dataclass
-class GeneratedProblemStatementList:
-    problem_statements: List[GeneratedProblemStatement]
-    prompt_tokens: int
-    completion_tokens: int
+    def to_detailed_format(self) -> str:
+        context_files_string = ""
+        for i, file in enumerate(self.context_files):
+            context_files_string += f"# File {i} used to solve the problem: {file}"
+        return dedent(f"""
+        Problem Statement: {self.problem_statement}
+        Checklist of items to consider: {self.dynamic_checklist}
+        {context_files_string}
+        """)
 
 
 @dataclass
@@ -125,6 +130,7 @@ class UnsolvedIssue:
     desc: str
     local_code_path: Path
     env_setup_path: Path
+
 
 class MinerModelStats(BaseModel):
     api_calls: int
@@ -151,7 +157,7 @@ class ListOfGeneratedProblems(BaseModel):
     generated_problem_statements: List[GeneratedProblem]
 
 
-class MinerOutputScore(BaseModel):
+class FloatGraderScore(BaseModel):
     dynamic_checklist_scores: List[float]
     addresses_problem_in_statement: float
     logical_solution: float
@@ -159,7 +165,7 @@ class MinerOutputScore(BaseModel):
     potential_bugs_generated: float
     explanation_of_scores: str
 
-EMPTY_PATCH_SCORE = MinerOutputScore(
+EMPTY_PATCH_SCORE = FloatGraderScore(
     dynamic_checklist_scores=[],
     addresses_problem_in_statement=0,
     logical_solution=0,
@@ -175,7 +181,7 @@ class FullyScoredProblem:
     miner_llm: str
     time_to_solve_s: float
     miner_solution: Optional[IssueSolution] = None
-    miner_output_score: Optional[MinerOutputScore] = None
+    miner_output_score: Optional[FloatGraderScore] = None
 
 # Dynamically create a TypedDict class based on the dataclass
 def create_typed_dict_from_dataclass(dataclass_type: Type) -> Type[TypedDict]:
