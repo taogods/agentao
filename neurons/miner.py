@@ -47,10 +47,12 @@ class Miner(BaseMinerNeuron):
         self, 
         config=None, 
         model_name: str = "claude-sonnet-3.5",
-        instance_cost: float = 3.0
+        instance_cost: float = 3.0,
+        use_mock_responses: bool = False,
     ):
         self.model_name = model_name
         self.instance_cost = instance_cost
+        self.use_mock_responses = use_mock_responses
         super(Miner, self).__init__(config=config)
 
     async def forward(
@@ -95,15 +97,19 @@ class Miner(BaseMinerNeuron):
 
             env_setup_path = REPO_TO_ENV_SETUP[repo]
 
-            synapse.patch = generate_code_patch(
-                self.model_name,
-                UnsolvedIssue(
-                    desc=synapse.problem_statement,
-                    local_code_path=local_repo_dir,
-                    env_setup_path=env_setup_path
-                ),
-                self.instance_cost,
-            ).patch
+            if self.use_mock_responses:
+                synapse.patch = "dummy patch"
+            else:
+                synapse.patch = generate_code_patch(
+                    self.model_name,
+                    UnsolvedIssue(
+                        desc=synapse.problem_statement,
+                        local_code_path=local_repo_dir,
+                        env_setup_path=env_setup_path
+                    ),
+                    self.instance_cost,
+                ).patch
+
             logger.info(f"Finished generating code patch for repo {synapse.repo}")
 
             logger.info(f"Exiting miner forward pass for repo {synapse.repo}")
@@ -254,6 +260,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-name", choices=AVAILABLE_MODELS, default="claude-sonnet-3.5")
     parser.add_argument("--instance-cost", type=float, default=3.0)
+    parser.add_argument("--use-mock-responses", action="store_true", default=False, help="Run miner in mock mode, returning a dummy patch")
     args, _ = parser.parse_known_args()
     return args
 
