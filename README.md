@@ -36,7 +36,7 @@ As the network grows, Cerebro evolves to efficiently transform problem statement
 
 ### Validator 
 - Continuously generates coding tasks for miners, sampling top PyPI packages.
-- Evaluates miner-generated solutions using large language models (LLMs) and simulated test cases.
+- Evaluates miner-generated solutions using large language models (LLMs) and simulated test cases (wip).
 - Scores solutions based on:
     - Correctness, especially for issues with pre-defined tests.
     - Speed of resolution.
@@ -83,51 +83,67 @@ As the network grows, Cerebro evolves to efficiently transform problem statement
 - [ ] Build a pipeline for miners to submit containers, enabling Taogod to 
  autonomously generate miners for other subnets.
 
-## Running a Miner / Validator
+### Running a Miner:
 
-### Prerequisites:
-First, [install Docker](https://docs.docker.com/engine/install/) and make sure you can run `docker hello-world` successfully.
+#### Requirements:
+- Python 3.9+
+- pip
+- Docker installed and running ([install guide](https://github.com/docker/docker-install))
 
-Then, set up your Python environment (we recommend using 3.11):
+#### Setup
+1. Clone the `taogod` repo:
 ```sh
-python3.11 -m venv venv
-source venv/bin/activate
+git clone --recurse-submodules https://github.com/taogods/taogod
+cd taogod
 ```
-Then, run `scripts/init_repo.sh`.
+2. Install `taogod` and `sweagent`: `pip install -e SWE-agent -e .`
+3. Set the required envars in the `.env` file, using [.env.miner_example](.env.miner_example) as a template. 
+4. Pull the latest sweagent Docker image: `docker pull sweagent/swe-agent:latest`
 
-### Adding logs and support
-This step is fully optional, but recommended. As a new subnet there may be unexpected bugs or errors. Use our PostHog key (provided below) in order to allow us to trace the error and assist:
-```shell
-echo POSTHOG_KEY=phc_3K85QHFLO2dokhFcIP8jFMkSsxeDNmHyUl9FDDeVpy0
-echo POSTHOG_HOST=https://us.i.posthog.com
-```
-
-### Running a miner
-After following the instructions above, set the required envars. Either one of these can be given:
-```shell
-ANTHROPIC_API_KEY  
-OPENAI_API_KEY
-```
-
+#### Run
 Then, run the miner script: 
 ```sh
-python neurons/miner.py --netuid 1 \ 
+python neurons/miner.py --netuid 1 \
     --wallet.name <wallet name> \
     --wallet.hotkey <hotkey name>
+    [--model <model to use, default is gpt4omini> (optional)]
+    [--instance-cost <max $ per miner query, default is 3> (optional)]
 ```
+
+#### Tips for Better Incentive
+Here are some tips for improving your miner:
+- Try a different autonomous agent framework, e.g. AutoCodeRover
+- Switch to a cheaper LLM provider to reduce cost
 
 ### Running a validator
-After following the instructions above, set the required envars:
-```sh
-GITHUB_TOKEN      # for creating PRs
-OPENAI_API_KEY    # for evaluating miner submissions
-```
 
+#### Requirements
+- Python 3.9+
+- pip
+
+#### Setup
+1. Clone the `taogod` repo:
+```sh
+git clone --recurse-submodules https://github.com/taogods/taogod
+cd taogod
+```
+2. Install `taogod`: `pip install -e .`
+3. Set the required envars in the `.env` file, using [.env.validator_example](.env.validator_example) as a template. 
+
+#### Run
 Then, run the validator script:
 ```sh
 python neurons/validator.py --netuid 1 \
     --wallet.name <wallet name> \
     --wallet.hotkey <hotkey name>
+    [--model <model to use, default is gpt4omini> (optional)]
+```
+
+### Logs and Support
+Sending logs is fully optional, but recommended. As a new subnet there may be unexpected bugs or errors. Use our PostHog key (provided below) in order to allow us to trace the error and assist:
+```shell
+echo POSTHOG_KEY=phc_3K85QHFLO2dokhFcIP8jFMkSsxeDNmHyUl9FDDeVpy0
+echo POSTHOG_HOST=https://us.i.posthog.com
 ```
 
 ## License
