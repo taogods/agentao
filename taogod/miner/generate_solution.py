@@ -8,6 +8,7 @@ from typing import List
 
 from simple_parsing.helpers.flatten import FlattenedAccess
 from simple_parsing.helpers.serialization.serializable import FrozenSerializable
+import sweagent
 from sweagent.agent.agents import Agent
 from sweagent.agent.agents import AgentArguments
 from sweagent.agent.models import ModelArguments
@@ -88,7 +89,7 @@ def create_script_arguments(
         unsolved_issue: UnsolvedIssue,
         instance_cost_limit: float
 ) -> ScriptArguments:
-    swe_agent_root = Path("../../SWE-agent")
+    swe_agent_root = Path(sweagent.__file__).parent.parent
     return ScriptArguments(
         environment=EnvironmentArguments(
             image_name="sweagent/swe-agent:latest",

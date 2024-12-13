@@ -10,7 +10,6 @@ from typing import *
 
 import numpy as np
 from aiohttp import BasicAuth, ClientSession
-from sweagent.environment.swe_env import SWEEnv
 
 from neurons.constants import UPLOAD_ISSUE_ENDPOINT
 from neurons.helpers import LOGGER
@@ -20,7 +19,6 @@ from taogod.helpers.classes import GeneratedProblemStatement, IngestionHeuristic
 from taogod.helpers.helpers import clone_repo, exponential_decay
 from taogod.protocol import CodingTask
 from taogod.repo_environment import SUPPORTED_REPOS
-from taogod.synthetic_testing import apply_patch, compare_test_results, run_tests
 from taogod.utils.uids import check_uid_availability
 from taogod.validator.generate_problem import create_problem_statements
 from taogod.validator.graders.abstract_grader import MinerSubmission
@@ -62,7 +60,7 @@ class Validator(BaseValidatorNeuron):
     def __init__(
         self,
         config=None,
-        model_name: str = ValidatorDefaults.MODEL,
+        model: str = ValidatorDefaults.MODEL,
         miner_request_timeout: int = ValidatorDefaults.CODINGTASK_TIMEOUT_MINS,
     ):
         super(Validator, self).__init__(config=config)
@@ -70,31 +68,8 @@ class Validator(BaseValidatorNeuron):
         LOGGER.info("load_state()")
         self.load_state()
 
-        self.model_name = model_name
+        self.model_name = model
         self.miner_request_timeout_mins = miner_request_timeout
-
-    @staticmethod
-    def process_response_wrapper(args):
-        """
-        A wrapper function to handle multiprocessing safely.
-        Takes a tuple of arguments to pass to the `process_response` function.
-        """
-        response, env_args, test_patch, tests_before = args
-        try:
-            env = SWEEnv(env_args)
-            env.reset(0)
-            # Apply patches
-            apply_patch(env, response)
-
-            # Run tests after applying patches
-            tests_after = run_tests(env)
-
-            # Compare test results
-            results = compare_test_results(tests_before, tests_after)
-            return results
-        except Exception as e:
-            LOGGER.exception(f"Error in synthetic rewards: {e}")
-            return None
 
     async def calculate_rewards(
         self,
@@ -115,39 +90,6 @@ class Validator(BaseValidatorNeuron):
             exponential_decay(self.miner_request_timeout_mins * 60, t)
             for t in process_times
         ])
-
-        # Commented out for now
-        # ## Synthetic testing
-        # env_args = EnvironmentArguments(
-        #         image_name="sweagent/swe-agent:latest",
-        #         data_path="text://example.json", # Doesnt matter for tests
-        #         repo_path=str(codebase),
-        #         verbose=True,
-        #         environment_setup=str(env_setup_path),
-        #     )
-        # env = SWEEnv(env_args)
-        # env.reset(0)
-        #
-        # tests_before = run_tests(env)
-        #
-        # # Share `tests_before` and other data across processes by making them part of the input arguments
-        # tasks = [(response, env_args, tests_before) for response in responses]
-        #
-        # with ThreadPoolExecutor() as executor:
-        #     synthetic_tests = list(executor.map(Validator.process_response_wrapper, tasks))
-        #
-        # syn_tests_arr = np.array([])
-        # for test in synthetic_tests:
-        #     if test is None: np.append(syn_tests_arr, 0.0)
-        #     else:
-        #         syn_tests_arr = np.append(
-        #             syn_tests_arr,
-        #             2 * int(len(test["PASS_TO_FAIL"]) == 0)
-        #             + int(len(test["FAIL_TO_PASS"]) >= 0)
-        #             + 3 * int(len(test["NEW_FAIL"]) == 0)
-        #         )
-        #
-        # os.remove(env_setup_path)
 
         return llm_evals + response_times
     
@@ -325,7 +267,7 @@ class Validator(BaseValidatorNeuron):
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--model-name",
+        "--model",
         choices=SUPPORTED_VALIDATOR_MODELS,
         default=ValidatorDefaults.MODEL,
         help="Model to use for problem generation and eval. Currently, only OpenAI models are supported."

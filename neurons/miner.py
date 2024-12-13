@@ -32,6 +32,7 @@ from taogod.miner.supported_models import MODEL_NAME_TO_ENVAR_NAME, SUPPORTED_MI
 from taogod.repo_environment import SUPPORTED_REPOS, REPO_TO_ENVIRONMENT_INFO
 
 
+
 class MinerDefaults:
     MAX_INSTANCE_COST = 3.
     MODEL = "claude-3-5-sonnet"
@@ -49,14 +50,14 @@ class Miner(BaseMinerNeuron):
     def __init__(
         self, 
         config=None, 
-        model_name: str = MinerDefaults.MODEL,
+        model: str = MinerDefaults.MODEL,
         max_instance_cost: float = MinerDefaults.MAX_INSTANCE_COST,
         use_mock_responses: bool = False,
     ):
 
-        init_swe_agent(model_name)
+        init_swe_agent(model)
 
-        self.model_name = model_name
+        self.model_name = model
         self.max_instance_cost = max_instance_cost
         self.use_mock_responses = use_mock_responses
 
@@ -236,7 +237,7 @@ def init_swe_agent(model_name: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-name", choices=SUPPORTED_MINER_MODELS, default=MinerDefaults.MODEL)
+    parser.add_argument("--model", choices=SUPPORTED_MINER_MODELS, default=MinerDefaults.MODEL)
     parser.add_argument("--max-instance-cost", type=float, default=MinerDefaults.MAX_INSTANCE_COST)
     parser.add_argument(
         "--use-mock-responses",
