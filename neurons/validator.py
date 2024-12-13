@@ -1,6 +1,32 @@
 # The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
 # Copyright © 2023 Taogod
+import argparse
+import random
+import time
+from datetime import timedelta
+from pathlib import Path
+from typing import *
+
+import numpy as np
+from aiohttp import BasicAuth, ClientSession
+from sweagent.environment.swe_env import SWEEnv
+
+from neurons.constants import UPLOAD_ISSUE_ENDPOINT
+from neurons.helpers import LOGGER
+from taogod.base.validator import BaseValidatorNeuron, TaskType
+from taogod.helpers.classes import GeneratedProblemStatement, IngestionHeuristics, \
+    IssueSolution
+from taogod.helpers.helpers import clone_repo, exponential_decay
+from taogod.protocol import CodingTask
+from taogod.repo_environment import SUPPORTED_REPOS
+from taogod.synthetic_testing import apply_patch, compare_test_results, run_tests
+from taogod.utils.uids import check_uid_availability
+from taogod.validator.generate_problem import create_problem_statements
+from taogod.validator.graders.abstract_grader import MinerSubmission
+from taogod.validator.graders.elo_grader import EloGrader
+from taogod.validator.supported_models import SUPPORTED_VALIDATOR_MODELS
+
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
@@ -14,135 +40,14 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import time
-from datetime import timedelta
-from pathlib import Path
-from textwrap import dedent
-from typing import *
 
-import math
-import numpy as np
-from aiohttp import BasicAuth, ClientSession
-from jinja2 import Template
-from sweagent.environment.swe_env import SWEEnv
-
-from neurons.constants import UPLOAD_ISSUE_ENDPOINT
-from neurons.helpers import LOGGER
-from taogod.base.validator import BaseValidatorNeuron, TaskType
-from taogod.helpers.classes import GeneratedProblemStatement, ProblemGeneratorParameters, IngestionHeuristics, \
-    IssueSolution
-from taogod.helpers.helpers import clone_repo, highest_cosine_filepair_selector
-from taogod.protocol import CodingTask
-from taogod.synthetic_testing import apply_patch, compare_test_results, run_tests
-from taogod.utils.uids import check_uid_availability
-from taogod.validator.generate_problem import generate_problem_statements
-from taogod.validator.graders.abstract_grader import MinerSubmission
-from taogod.validator.graders.elo_grader import EloGrader
-from taogod.validator.ingest import get_all_filepairs
-
-CODINGTASK_TIMEOUT_MINS: Final[float] = 30.
-
-PROBLEM_STATEMENT_TEMPLATE: Final[Template] = Template(
-    dedent("""
-    You are a skilled software engineering assistant. You will be provided with multiple files as context. Each file will contain portions of code, documentation, or relevant information about a software system. Your task is to come up with a specific software engineering problem that requires a solution to involve at least two of these files. You will generate a list of these problems, in the generated_problems array response.
-
-    Further, once you have a problem statement, generate a checklist of points to consider and things that should be present in the solution (for example, are the correct Github API calls made if its a function that interfaces with the api). Generate several of these into dynamic_checklist field.
-    Some additional guidelines are:
-    - Do not output anything other than software engineering problem
-    - The problem description should be very detailed and meticulous. It should contain sufficient context such that someone equipped with the codebase and your problem statement will have enough information to implement
-    - The problem should be solvable by an autonomous SWE which can do things like installing PyPi packages, but cannot do things like make cloud provider accounts and register for other services manually.
-    - The problem should not be overly difficult to implement, and should be fairly easy and not take too many LLM calls. 
-    - Do not disclose which files would need to be modified to solve the problem.
-
-    Here are the files:
-    {% for file in files %}
-    Filename: {{ file.path }}
-    ```python3
-    {{ file.contents }}
-    ```
-    {% endfor %}
-    ```
-    """)
-)
-
-GRADER_SYSTEM_PROMPT: Final[str] = """
-Instructions:
-    You are tasked with evaluating a code patch to determine how well it addresses a specific problem. Please follow these steps:
-    Read the Problem Statement to understand the issue that needs to be resolved.
-    Review the Git Diff to see the changes introduced by the patch.
-    Examine the Affected Files to understand the context of the changes.
-Your Task:
-    Assess the patch for correctness, completeness, and effectiveness in solving the problem.
-    Fill out each field (addresses problem in statement, whether its a logical or dumb solution, brevity and how clean the code is, and how likely it is to introduce other bugs)
-    Consider any potential side effects or issues introduced by the patch.
-    Grade a concise solution higher than a lengthy one assuming both are correct and complete.
-    Provide a percentage numerical score between 0 and 1 representing how well the patch solves the problem:
-    1 means the patch perfectly and completely solves the problem.
-    0 means the patch does not address the problem at all.
-    If you do not know for sure that the patch perfectly and completely solved the problem, do not give it 1. Instead, give it some value between 0 and 1. Be harshly critical of the submissions you receive, think carefully to find ways in which they may have issues, and make sure the score is reduced appropriately. You will be penalized more harshly if you give scores that are too high than scores that are too low, so bias on the side of giving lower scores.
-"""
-
-
-def exponential_decay(N, x):
-    """
-    Outputs a value that approaches 1 as x approaches 0 and approaches 0 as x approaches or exceeds N.
-
-    Parameters:
-    - N (int or float): The threshold value.
-    - x (int or float): The input value.
-
-    Returns:
-    - float: The output value.
-    """
-    if x >= N:
-        return 0
-    return math.exp(-x / (N - x))
-
-def create_problem_statements(
-    validator_llm: str,
-    repo: str,
-    local_repo_dir: Path,
-    problems: Union[int, List[str]],
-    ingestion_heuristics: IngestionHeuristics
-) -> List[GeneratedProblemStatement]:
-    if isinstance(problems, int):
-        problem_generator_params = ProblemGeneratorParameters(
-            filepair_selection_logic=highest_cosine_filepair_selector,
-            prompt_template=PROBLEM_STATEMENT_TEMPLATE,
-            num_problems_to_gen=problems,
-            problem_gen_model=validator_llm,
-        )
-
-        problem_statements: List[GeneratedProblemStatement] = generate_problems_for_single_repo(
-            repo_path=local_repo_dir,
-            ingestion_heuristics=ingestion_heuristics,
-            problem_generation_params=problem_generator_params
-        )
-    else:
-        raise ValueError(
-            f"config[{repo}]['problems'] must be a list of strings or an integer. "
-            f"Current value of `{problems}` is invalid"
-        )
-    return problem_statements
-
-
-def generate_problems_for_single_repo(
-    repo_path: Path,
-    ingestion_heuristics: IngestionHeuristics,
-    problem_generation_params: ProblemGeneratorParameters
-) -> List[GeneratedProblemStatement]:
-    file_pairs = get_all_filepairs(
-        repo_path,
-        heuristics=ingestion_heuristics,
-        refresh=False
+class ValidatorDefaults:
+    CODINGTASK_TIMEOUT_MINS = 30.
+    MODEL = "gpt4omini"
+    INGESTION_HEURISTICS = IngestionHeuristics(
+        min_files_to_consider_dir_for_problems=3,
+        min_file_content_len=50,
     )
-
-    # Generate one problem statement, with prompt and model to benchmark
-    problem_statements_list = generate_problem_statements(
-        filepairs=file_pairs,
-        parameters=problem_generation_params
-    )
-    return problem_statements_list
 
 
 class Validator(BaseValidatorNeuron):
@@ -154,13 +59,19 @@ class Validator(BaseValidatorNeuron):
     This class provides reasonable default behavior for a validator such as keeping a moving average of the scores of the miners and using them to set weights at the end of each epoch. Additionally, the scores are reset for new hotkeys at the end of each epoch.
     """
 
-    def __init__(self, config=None):
+    def __init__(
+        self,
+        config=None,
+        model_name: str = ValidatorDefaults.MODEL,
+        miner_request_timeout: int = ValidatorDefaults.CODINGTASK_TIMEOUT_MINS,
+    ):
         super(Validator, self).__init__(config=config)
 
         LOGGER.info("load_state()")
         self.load_state()
 
-        # TODO(developer): Anything specific to your use case you can do here
+        self.model_name = model_name
+        self.miner_request_timeout_mins = miner_request_timeout
 
     @staticmethod
     def process_response_wrapper(args):
@@ -185,8 +96,8 @@ class Validator(BaseValidatorNeuron):
             LOGGER.exception(f"Error in synthetic rewards: {e}")
             return None
 
-    @staticmethod
     async def calculate_rewards(
+        self,
         repo: str,
         problem: GeneratedProblemStatement,
         issue_solutions: List[IssueSolution],
@@ -201,7 +112,7 @@ class Validator(BaseValidatorNeuron):
         ])
 
         response_times = np.array([
-            exponential_decay(CODINGTASK_TIMEOUT_MINS*60, t)
+            exponential_decay(self.miner_request_timeout_mins * 60, t)
             for t in process_times
         ])
 
@@ -307,14 +218,7 @@ class Validator(BaseValidatorNeuron):
         LOGGER.info(f"Current step={self.step}...")
 
         current_dir = Path.cwd()
-        # TODO: Make this dynamic
-        repo = "mwaskom/seaborn"
-        validator_llm = "gpt4omini"
-
-        ingestion_heuristics = IngestionHeuristics(
-            min_files_to_consider_dir_for_problems=3,
-            min_file_content_len=50,
-        )
+        repo = random.choice(SUPPORTED_REPOS)
 
         author_name, repo_name = repo.split("/")
 
@@ -324,7 +228,7 @@ class Validator(BaseValidatorNeuron):
 
         num_problems_to_gen = 1
         problems: List[GeneratedProblemStatement] = create_problem_statements(
-            validator_llm, repo, local_repo_dir, num_problems_to_gen, ingestion_heuristics
+            self.model_name, repo, local_repo_dir, num_problems_to_gen, ValidatorDefaults.INGESTION_HEURISTICS
         )
         problem: GeneratedProblemStatement = problems[0]
         LOGGER.info(f"Problem statement is: {problem.problem_statement[:50]}...")
@@ -341,7 +245,7 @@ class Validator(BaseValidatorNeuron):
                 patch=None,
             ),
             deserialize=False,
-            timeout=timedelta(minutes=CODINGTASK_TIMEOUT_MINS).total_seconds(), # TODO: need a better timeout method
+            timeout=timedelta(minutes=self.miner_request_timeout_mins).total_seconds(),
         )
         LOGGER.info(f"Received patches from miners for task {task_id}: "
                     f"{[(r.patch[:100] + '...' if r.patch else r.patch) for r in responses]}")
@@ -388,7 +292,7 @@ class Validator(BaseValidatorNeuron):
         working_miner_uids: List[int], 
     ) -> None:
         try:
-            rewards_list = await Validator.calculate_rewards(
+            rewards_list = await self.calculate_rewards(
                 repo,
                 problem,
                 finished_responses, 
@@ -418,8 +322,25 @@ class Validator(BaseValidatorNeuron):
             LOGGER.exception("Error uploading solution")
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--model-name",
+        choices=SUPPORTED_VALIDATOR_MODELS,
+        default=ValidatorDefaults.MODEL,
+        help="Model to use for problem generation and eval. Currently, only OpenAI models are supported."
+    )
+    parser.add_argument(
+        "--miner-request-timeout",
+        type=int,
+        default=ValidatorDefaults.CODINGTASK_TIMEOUT_MINS,
+        help="How long to wait for a response from the miners, in minutes",
+    )
+    args, _ = parser.parse_known_args()
+    return args
+
 # The main function parses the configuration and runs the validator.
 if __name__ == "__main__":
-    with Validator() as validator:
+    with Validator(**vars(parse_args())) as validator:
         while True:
             time.sleep(5)

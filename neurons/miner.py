@@ -15,9 +15,12 @@
 
 import argparse
 import os
+import tempfile
 import time
 from pathlib import Path
-from typing import Dict, Final, List, Tuple
+from typing import Tuple
+
+import yaml
 
 import taogod
 from taogod.base.miner import BaseMinerNeuron
@@ -25,13 +28,13 @@ from taogod.helpers.classes import UnsolvedIssue
 from taogod.helpers.clients import logger
 from taogod.helpers.helpers import clone_repo
 from taogod.miner.generate_solution import generate_code_patch
+from taogod.miner.supported_models import MODEL_NAME_TO_ENVAR_NAME, SUPPORTED_MINER_MODELS
+from taogod.repo_environment import SUPPORTED_REPOS, REPO_TO_ENVIRONMENT_INFO
 
 
-# TODO: Migrate to use SWEBench setup
-# TODO: Verify the path here works
-REPO_TO_ENV_SETUP: Final[Dict[str, Path]] = {
-    "mwaskom/seaborn": Path("./taogod/env_setup/seaborn.yaml")
-}
+class MinerDefaults:
+    MAX_INSTANCE_COST = 3.
+    MODEL = "claude-3-5-sonnet"
 
 
 class Miner(BaseMinerNeuron):
@@ -46,13 +49,17 @@ class Miner(BaseMinerNeuron):
     def __init__(
         self, 
         config=None, 
-        model_name: str = "claude-sonnet-3.5",
-        instance_cost: float = 3.0,
+        model_name: str = MinerDefaults.MODEL,
+        max_instance_cost: float = MinerDefaults.MAX_INSTANCE_COST,
         use_mock_responses: bool = False,
     ):
+
+        init_swe_agent(model_name)
+
         self.model_name = model_name
-        self.instance_cost = instance_cost
+        self.max_instance_cost = max_instance_cost
         self.use_mock_responses = use_mock_responses
+
         super(Miner, self).__init__(config=config)
 
     async def forward(
@@ -89,26 +96,29 @@ class Miner(BaseMinerNeuron):
             local_repo_dir = clone_repo(author_name, repo_name, current_dir.parent)
             logger.info(f"Finished cloning repo {repo}")
 
-            if repo not in REPO_TO_ENV_SETUP:
+            if repo not in SUPPORTED_REPOS:
                 raise ValueError(
                     f"Repo {repo} is not configured on miner. "
                     f"Please provide an environment setup file in REPO_TO_ENV_SETUP"
                 )
 
-            env_setup_path = REPO_TO_ENV_SETUP[repo]
+            repo_environment_info = REPO_TO_ENVIRONMENT_INFO[repo]
+            with tempfile.NamedTemporaryFile(suffix=".yaml", mode="w") as temp_env_file:
+                yaml.dump(repo_environment_info.config_dict, temp_env_file)
+                temp_env_file.flush()
 
-            if self.use_mock_responses:
-                synapse.patch = "dummy patch"
-            else:
-                synapse.patch = generate_code_patch(
-                    self.model_name,
-                    UnsolvedIssue(
-                        desc=synapse.problem_statement,
-                        local_code_path=local_repo_dir,
-                        env_setup_path=env_setup_path
-                    ),
-                    self.instance_cost,
-                ).patch
+                if self.use_mock_responses:
+                    synapse.patch = "dummy patch"
+                else:
+                    synapse.patch = generate_code_patch(
+                        self.model_name,
+                        UnsolvedIssue(
+                            desc=synapse.problem_statement,
+                            local_code_path=local_repo_dir,
+                            env_setup_path=Path(temp_env_file.name)
+                        ),
+                        self.max_instance_cost,
+                    ).patch
 
             logger.info(f"Finished generating code patch for repo {synapse.repo}")
 
@@ -155,7 +165,6 @@ class Miner(BaseMinerNeuron):
             logger.warning("Received a request without a dendrite or hotkey.")
             return True, "Missing dendrite or hotkey"
 
-        # TODO(developer): Define how miners should blacklist requests.
         uid = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
         if (
             not self.config.blacklist.allow_non_registered
@@ -204,7 +213,6 @@ class Miner(BaseMinerNeuron):
             logger.warning("Received a request without a dendrite or hotkey.")
             return 0.0
         
-        # TODO(developer): Define how miners should prioritize requests.
         caller_uid = self.metagraph.hotkeys.index(
             synapse.dendrite.hotkey
         )  # Get the caller index.
@@ -217,58 +225,31 @@ class Miner(BaseMinerNeuron):
         return priority
 
 
-AVAILABLE_MODELS: Final[List[str]] = [
-    "gpt4",
-    "gpt4-legacy",
-    "gpt4-0125",
-    "gpt3-0125",
-    "gpt4-turbo",
-    "gpt4o",
-    "gpt-4o-mini",
-    "gpt4omini",
-    "o1",
-    "o1-mini",
-    "claude-2",
-    "claude-opus",
-    "claude-sonnet",
-    "claude-haiku",
-    "claude-sonnet-3.5",
-]
-
-MODEL_CRED_ENVARS: Final[List[str]] = [
-    "GITHUB_TOKEN",
-    "OPENAI_API_KEY",
-    "ANTHROPIC_API_KEY",
-    "TOGETHER_API_KEY",
-    "AZURE_OPENAI_API_KEY",
-    "AZURE_OPENAI_ENDPOINT",
-    "AZURE_OPENAI_DEPLOYMENT",
-    "AZURE_OPENAI_API_VERSION",
-    "OPENAI_API_BASE_URL",
-    "GROQ_API_KEY",
-]
-
-def create_keys_cfg() -> None:
+def init_swe_agent(model_name: str) -> None:
     """Creates keys.cfg file from envars"""
-    buffer = [f"{key}: '{os.environ[key]}'" for key in MODEL_CRED_ENVARS if key in os.environ]
+    envar_names = [MODEL_NAME_TO_ENVAR_NAME[model_name]]
 
+    buffer = [f"{key}: '{os.environ[key]}'" for key in envar_names if key in os.environ]
     with open("SWE-agent/keys.cfg", "w") as f:
         f.write("\n".join(buffer) + "\n")
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-name", choices=AVAILABLE_MODELS, default="claude-sonnet-3.5")
-    parser.add_argument("--instance-cost", type=float, default=3.0)
-    parser.add_argument("--use-mock-responses", action="store_true", default=False, help="Run miner in mock mode, returning a dummy patch")
+    parser.add_argument("--model-name", choices=SUPPORTED_MINER_MODELS, default=MinerDefaults.MODEL)
+    parser.add_argument("--max-instance-cost", type=float, default=MinerDefaults.MAX_INSTANCE_COST)
+    parser.add_argument(
+        "--use-mock-responses",
+        action="store_true",
+        default=False,
+        help="Run miner in mock mode, returning a dummy patch"
+    )
     args, _ = parser.parse_known_args()
     return args
 
 
 # This is the main function, which runs the miner.
 if __name__ == "__main__":
-    create_keys_cfg()
-
     with Miner(**vars(parse_args())) as miner:
         while True:
             time.sleep(5)

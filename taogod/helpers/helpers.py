@@ -8,11 +8,12 @@ from pprint import pformat
 from statistics import mean
 from typing import List, Dict, Union, TypedDict
 
+import math
 import yaml
 from git import Repo
 from tabulate import tabulate
 
-from taogod.helpers.classes import FilePair, FloatGraderScore, FullyScoredProblem, convert_to_obj
+from taogod.helpers.classes import FloatGraderScore, FullyScoredProblem, convert_to_obj
 from taogod.helpers.clients import logger
 from taogod.helpers.constants import PRICING_DATA_PER_MILLION_TOKENS, SENTINEL_FLOAT_FAILURE_VALUE, \
     SENTINEL_STRING_FAILURE_VALUE
@@ -74,14 +75,20 @@ def calculate_price(model_name: str, input_tokens: int, output_tokens: int) -> f
     return (input_tokens * input_price + output_tokens * output_price) / 1e6
 
 
-def highest_cosine_filepair_selector(file_pairs: List[FilePair]) -> FilePair:
-    selected_file_pair = sorted(
-        file_pairs,
-        key=lambda x: float(x.cosine_similarity),
-        reverse=True
-    )[0]
+def exponential_decay(N, x):
+    """
+    Outputs a value that approaches 1 as x approaches 0 and approaches 0 as x approaches or exceeds N.
 
-    return selected_file_pair
+    Parameters:
+    - N (int or float): The threshold value.
+    - x (int or float): The input value.
+
+    Returns:
+    - float: The output value.
+    """
+    if x >= N:
+        return 0
+    return math.exp(-x / (N - x))
 
 
 def parse_yaml(config_path: Path) -> Dict:

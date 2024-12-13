@@ -1,0 +1,2 @@
+llm: "gpt4omini"
+codingtask_timeout_mins: 30
