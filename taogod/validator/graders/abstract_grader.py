@@ -10,6 +10,7 @@ class MinerSubmission(BaseModel):
     repo: str
     problem: GeneratedProblemStatement
     solution: IssueSolution
+    miner_hotkey: str
 
 
 class GraderInterface(ABC):

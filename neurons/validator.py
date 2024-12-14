@@ -11,7 +11,7 @@ from typing import *
 import numpy as np
 from aiohttp import BasicAuth, ClientSession
 
-from neurons.constants import UPLOAD_ISSUE_ENDPOINT
+from neurons.constants import UPLOAD_ISSUE_ENDPOINT, LLM_EVAL_MULT, PROCESS_TIME_MULT
 from neurons.helpers import LOGGER
 from taogod.base.validator import BaseValidatorNeuron, TaskType
 from taogod.helpers.classes import GeneratedProblemStatement, IngestionHeuristics, \
@@ -22,7 +22,7 @@ from taogod.repo_environment import SUPPORTED_REPOS
 from taogod.utils.uids import check_uid_availability
 from taogod.validator.generate_problem import create_problem_statements
 from taogod.validator.graders.abstract_grader import MinerSubmission
-from taogod.validator.graders.elo_grader import EloGrader
+from taogod.validator.graders.trueskill_grader import TrueSkillGrader
 from taogod.validator.supported_models import SUPPORTED_VALIDATOR_MODELS
 
 
@@ -70,20 +70,21 @@ class Validator(BaseValidatorNeuron):
 
         self.model_name = model
         self.miner_request_timeout_mins = miner_request_timeout
+        self.grader = TrueSkillGrader()
 
     async def calculate_rewards(
         self,
         repo: str,
         problem: GeneratedProblemStatement,
         issue_solutions: List[IssueSolution],
+        miner_hotkeys: List[str],
         process_times: List[float],
     ) -> np.ndarray:
         """
         Validate the responses from the miners. This function should score the responses and return a list of rewards for each miner.
         """
-        elo_grader = EloGrader()
-        llm_evals = elo_grader.grade([
-            MinerSubmission(repo=repo, problem=problem, solution=issue_solution) for issue_solution in issue_solutions
+        llm_evals = self.grader.grade([
+            MinerSubmission(repo=repo, problem=problem, solution=issue_solution, miner_hotkey=hk) for issue_solution, hk in zip(issue_solutions, miner_hotkeys)
         ])
 
         response_times = np.array([
@@ -91,7 +92,7 @@ class Validator(BaseValidatorNeuron):
             for t in process_times
         ])
 
-        return llm_evals + response_times
+        return LLM_EVAL_MULT*llm_evals + PROCESS_TIME_MULT*response_times
     
     # TODO: Add more fields once components of scoring are named
     async def upload_solution(
@@ -233,11 +234,13 @@ class Validator(BaseValidatorNeuron):
         process_times: List[float], 
         working_miner_uids: List[int], 
     ) -> None:
+        miner_hotkeys = [self.metagraph.hotkeys[uid] for uid in working_miner_uids]
         try:
             rewards_list = await self.calculate_rewards(
                 repo,
                 problem,
                 finished_responses, 
+                miner_hotkeys,
                 process_times,
             )
         except Exception:
@@ -258,7 +261,7 @@ class Validator(BaseValidatorNeuron):
                 problem.problem_statement,
                 finished_responses,
                 rewards_list.tolist(),
-                [self.metagraph.hotkeys[uid] for uid in working_miner_uids],
+                miner_hotkeys,
             )
         except Exception:
             LOGGER.exception("Error uploading solution")
