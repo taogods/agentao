@@ -22,7 +22,7 @@ import openai
 import tiktoken
 
 from agentao.helpers.classes import EmbeddedFile, FilePair, IngestionHeuristics
-from agentao.helpers.clients import logger
+from agentao.helpers.clients import LOGGER
 
 
 OPENAI_CLIENT: Final[openai.Client] = openai.Client(api_key=os.getenv("OPENAI_API_KEY"))
@@ -78,7 +78,7 @@ def evaluate_for_context(dir_path, repo_structure, heuristics: IngestionHeuristi
                     }
                 )
             except (UnicodeDecodeError, IOError):
-                logger.exception(f"Warning: Could not read file {path}")
+                LOGGER.exception(f"Warning: Could not read file {path}")
                 continue
 
         return files
@@ -211,4 +211,4 @@ if __name__ == "__main__":
     )
     
     for pair in file_pairs:
-        logger.info(f"{pair} {type(pair)}")
+        LOGGER.info(f"{pair} {type(pair)}")

@@ -4,7 +4,8 @@ Script to test the miner `generate_code_patch` function used in the miner forwar
 Uses a sample issue from the SWE-agent tutorial:
 https://princeton-nlp.github.io/SWE-agent/usage/cl_tutorial
 """
-from agentao.miner_utils import UnsolvedIssue, generate_code_patch
+from agentao.helpers.classes import UnsolvedIssue
+from agentao.miner.generate_solution import generate_code_patch
 
 test_issue_desc = """I'm running missing_colon.py as follows:
 

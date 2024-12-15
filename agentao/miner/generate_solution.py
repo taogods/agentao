@@ -20,7 +20,7 @@ from sweagent.environment.utils import (
 from sweagent.types import AgentInfo, TrajectoryStep
 
 from agentao.helpers.classes import UnsolvedIssue, IssueSolution, MinerModelStats
-from agentao.helpers.clients import logger
+from agentao.helpers.clients import LOGGER
 
 
 @dataclass(frozen=True)
@@ -127,7 +127,7 @@ def generate_code_patch(
     trajectories_dir = Path.cwd() / "trajectories"
     trajectories_dir.mkdir(exist_ok=True)
 
-    logger.info("Running sweagent...")
+    LOGGER.info("Running sweagent...")
 
     info: AgentInfo
     trajectory_steps: List[TrajectoryStep]
@@ -149,7 +149,7 @@ def generate_code_patch(
         k: (v if k not in ["edited_files30", "submission", "edited_files50"] else f"{v[:100]}...")
         for k, v in info.items()
     }
-    logger.info(f"Finished running sweagent, ran for {duration_s:.2f}s. Received info: {pformat(readable_info)}")
+    LOGGER.info(f"Finished running sweagent, ran for {duration_s:.2f}s. Received info: {pformat(readable_info)}")
     return IssueSolution(
         patch=info["submission"],
         model_stats=MinerModelStats.model_validate(

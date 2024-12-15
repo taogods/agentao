@@ -1,31 +1,6 @@
 # The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
 # Copyright © 2023 Agentao
-import argparse
-import random
-import time
-from datetime import timedelta
-from pathlib import Path
-from typing import *
-
-import numpy as np
-from aiohttp import BasicAuth, ClientSession
-
-from neurons.constants import UPLOAD_ISSUE_ENDPOINT
-from neurons.helpers import LOGGER
-from agentao.base.validator import BaseValidatorNeuron, TaskType
-from agentao.helpers.classes import GeneratedProblemStatement, IngestionHeuristics, \
-    IssueSolution
-from agentao.helpers.helpers import clone_repo, exponential_decay
-from agentao.protocol import CodingTask
-from agentao.repo_environment import SUPPORTED_REPOS
-from agentao.utils.uids import check_uid_availability
-from agentao.validator.generate_problem import create_problem_statements
-from agentao.validator.graders.abstract_grader import MinerSubmission
-from agentao.validator.graders.elo_grader import EloGrader
-from agentao.validator.supported_models import SUPPORTED_VALIDATOR_MODELS
-
-
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
 # the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
@@ -37,6 +12,30 @@ from agentao.validator.supported_models import SUPPORTED_VALIDATOR_MODELS
 # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
+
+import argparse
+import random
+import time
+from datetime import timedelta
+from pathlib import Path
+from typing import *
+
+import numpy as np
+from aiohttp import BasicAuth, ClientSession
+
+from agentao.base.validator import BaseValidatorNeuron, TaskType
+from agentao.helpers.classes import GeneratedProblemStatement, IngestionHeuristics, \
+    IssueSolution
+from agentao.helpers.clients import LOGGER
+from agentao.helpers.helpers import clone_repo, exponential_decay
+from agentao.protocol import CodingTask
+from agentao.repo_environment import SUPPORTED_REPOS
+from agentao.utils.uids import check_uid_availability
+from agentao.validator.generate_problem import create_problem_statements
+from agentao.validator.graders.abstract_grader import MinerSubmission
+from agentao.validator.graders.elo_grader import EloGrader
+from agentao.validator.supported_models import SUPPORTED_VALIDATOR_MODELS
+from neurons.constants import UPLOAD_ISSUE_ENDPOINT
 
 
 class ValidatorDefaults:
@@ -132,8 +131,7 @@ class Validator(BaseValidatorNeuron):
                     _result = await response.json()
         except Exception:
             LOGGER.exception("Error uploading closed issue")
-        ...
-    
+
     async def forward(self):
         """
         Validator forward pass. Consists of:

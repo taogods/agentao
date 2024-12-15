@@ -25,12 +25,11 @@ import yaml
 import agentao
 from agentao.base.miner import BaseMinerNeuron
 from agentao.helpers.classes import UnsolvedIssue
-from agentao.helpers.clients import logger
+from agentao.helpers.clients import LOGGER
 from agentao.helpers.helpers import clone_repo
 from agentao.miner.generate_solution import generate_code_patch
 from agentao.miner.supported_models import MODEL_NAME_TO_ENVAR_NAME, SUPPORTED_MINER_MODELS
 from agentao.repo_environment import SUPPORTED_REPOS, REPO_TO_ENVIRONMENT_INFO
-
 
 
 class MinerDefaults:
@@ -80,8 +79,8 @@ class Miner(BaseMinerNeuron):
         the miner's intended operation. This method demonstrates a basic transformation of input data.
         """
         # if patch.txt exists return that
-        logger.info("Starting miner forward pass...")
-        logger.info(f"Received a request with repo: {synapse.repo}, problem statement: {synapse.problem_statement[:50]}...")
+        LOGGER.info("Starting miner forward pass...")
+        LOGGER.info(f"Received a request with repo: {synapse.repo}, problem statement: {synapse.problem_statement[:50]}...")
 
         current_dir = Path.cwd()
 
@@ -91,11 +90,11 @@ class Miner(BaseMinerNeuron):
 
             jobs_dir = Path("jobs")
             jobs_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(f"Using {jobs_dir.absolute()} as the directory for code repositories")
+            LOGGER.info(f"Using {jobs_dir.absolute()} as the directory for code repositories")
 
-            logger.info(f"Cloning repo {repo}...")
+            LOGGER.info(f"Cloning repo {repo}...")
             local_repo_dir = clone_repo(author_name, repo_name, current_dir.parent)
-            logger.info(f"Finished cloning repo {repo}")
+            LOGGER.info(f"Finished cloning repo {repo}")
 
             if repo not in SUPPORTED_REPOS:
                 raise ValueError(
@@ -121,13 +120,13 @@ class Miner(BaseMinerNeuron):
                         self.max_instance_cost,
                     ).patch
 
-            logger.info(f"Finished generating code patch for repo {synapse.repo}")
+            LOGGER.info(f"Finished generating code patch for repo {synapse.repo}")
 
-            logger.info(f"Exiting miner forward pass for repo {synapse.repo}")
-            logger.debug(f"Returning patch: {synapse.patch}")
+            LOGGER.info(f"Exiting miner forward pass for repo {synapse.repo}")
+            LOGGER.debug(f"Returning patch: {synapse.patch}")
             return synapse
         except Exception:
-            logger.exception("Error processing request")
+            LOGGER.exception("Error processing request")
 
     async def blacklist(
         self, synapse: agentao.protocol.CodingTask
@@ -163,7 +162,7 @@ class Miner(BaseMinerNeuron):
         """
 
         if synapse.dendrite is None or synapse.dendrite.hotkey is None:
-            logger.warning("Received a request without a dendrite or hotkey.")
+            LOGGER.warning("Received a request without a dendrite or hotkey.")
             return True, "Missing dendrite or hotkey"
 
         uid = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
@@ -172,7 +171,7 @@ class Miner(BaseMinerNeuron):
             and synapse.dendrite.hotkey not in self.metagraph.hotkeys
         ):
             # Ignore requests from un-registered entities.
-            logger.info(
+            LOGGER.info(
                 f"Blacklisting un-registered hotkey {synapse.dendrite.hotkey}"
             )
             return True, "Unrecognized hotkey"
@@ -180,12 +179,12 @@ class Miner(BaseMinerNeuron):
         if self.config.blacklist.force_validator_permit:
             # If the config is set to force validator permit, then we should only allow requests from validators.
             if not self.metagraph.validator_permit[uid]:
-                logger.warning(
+                LOGGER.warning(
                     f"Blacklisting a request from non-validator hotkey {synapse.dendrite.hotkey}"
                 )
                 return True, "Non-validator hotkey"
 
-        logger.info(
+        LOGGER.info(
             f"Not Blacklisting recognized hotkey {synapse.dendrite.hotkey}"
         )
         return False, "Hotkey recognized!"
@@ -211,7 +210,7 @@ class Miner(BaseMinerNeuron):
         - A higher stake results in a higher priority value.
         """
         if synapse.dendrite is None or synapse.dendrite.hotkey is None:
-            logger.warning("Received a request without a dendrite or hotkey.")
+            LOGGER.warning("Received a request without a dendrite or hotkey.")
             return 0.0
         
         caller_uid = self.metagraph.hotkeys.index(
@@ -220,7 +219,7 @@ class Miner(BaseMinerNeuron):
         priority = float(
             self.metagraph.S[caller_uid]
         )  # Return the stake as the priority.
-        logger.info(
+        LOGGER.info(
             f"Prioritizing {synapse.dendrite.hotkey} with value: {priority}"
         )
         return priority
