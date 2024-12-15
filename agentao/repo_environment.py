@@ -22,6 +22,7 @@ class RepoEnvironmentInfo(BaseModel):
 
         specs_dict = MAP_REPO_VERSION_TO_SPECS[repo]
 
+        # Get latest supported version
         max_key: str = max(specs_dict.keys(), key=lambda version: float(version))
 
         install_command: str = specs_dict[max_key]["install"]
@@ -36,6 +37,9 @@ class RepoEnvironmentInfo(BaseModel):
 SUPPORTED_REPOS: Final[List[str]] = [
     "mwaskom/seaborn",
     "pytest-dev/pytest",
+    "pallets/flask",
+    "pylint-dev/pylint",
+    "psf/requests",
 ]
 
 REPO_TO_ENVIRONMENT_INFO: Final[Dict[str, RepoEnvironmentInfo]] = {

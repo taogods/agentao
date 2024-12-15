@@ -74,6 +74,9 @@ setup(
     license="MIT",
     python_requires=">=3.8",
     install_requires=[
+        # Submodule requirement, make sure to install this in editable mode:
+        # https://github.com/taogods/SWE-agent
+
         # Install nightly version to patch issue with validators crashing in 1.8.0 release
         "websocket-client @ git+https://github.com/websocket-client/websocket-client.git",
         # todo: update bittensor version
