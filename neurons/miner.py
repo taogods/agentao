@@ -26,9 +26,9 @@ import agentao
 from agentao.base.miner import BaseMinerNeuron
 from agentao.helpers.classes import UnsolvedIssue
 from agentao.helpers.clients import LOGGER
+from agentao.helpers.constants import MODEL_NAME_TO_ENVAR_NAME, SUPPORTED_MINER_MODELS
 from agentao.helpers.helpers import clone_repo
 from agentao.miner.generate_solution import generate_code_patch
-from agentao.miner.supported_models import MODEL_NAME_TO_ENVAR_NAME, SUPPORTED_MINER_MODELS
 from agentao.repo_environment import SUPPORTED_REPOS, REPO_TO_ENVIRONMENT_INFO
 
 

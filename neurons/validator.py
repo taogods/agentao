@@ -27,6 +27,7 @@ from agentao.base.validator import BaseValidatorNeuron, TaskType
 from agentao.helpers.classes import GeneratedProblemStatement, IngestionHeuristics, \
     IssueSolution
 from agentao.helpers.clients import LOGGER
+from agentao.helpers.constants import SUPPORTED_VALIDATOR_MODELS
 from agentao.helpers.helpers import clone_repo, exponential_decay
 from agentao.protocol import CodingTask
 from agentao.repo_environment import SUPPORTED_REPOS
@@ -34,7 +35,6 @@ from agentao.utils.uids import check_uid_availability
 from agentao.validator.generate_problem import create_problem_statements
 from agentao.validator.graders.abstract_grader import MinerSubmission
 from agentao.validator.graders.elo_grader import EloGrader
-from agentao.validator.supported_models import SUPPORTED_VALIDATOR_MODELS
 from neurons.constants import UPLOAD_ISSUE_ENDPOINT
 
 

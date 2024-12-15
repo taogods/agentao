@@ -1,10 +1,39 @@
-from typing import Final
+from typing import List, Final, Dict
+
+OPENAI_MODELS: Final[List[str]] = [
+    "gpt4",
+    "gpt4-legacy",
+    "gpt4-0125",
+    "gpt3-0125",
+    "gpt4-turbo",
+    "gpt4o",
+    "gpt-4o-mini",
+    "gpt4omini",
+    "o1",
+    "o1-mini",
+]
+
+ANTHROPIC_MODELS: Final[List[str]] = [
+    "claude-2",
+    "claude-opus",
+    "claude-sonnet",
+    "claude-haiku",
+    "claude-3-5-sonnet",
+]
+
+MODEL_NAME_TO_ENVAR_NAME: Final[Dict[str, str]] = (
+        {model: "OPENAI_API_KEY" for model in OPENAI_MODELS} |
+        {model: "ANTHROPIC_API_KEY" for model in ANTHROPIC_MODELS}
+)
+
+SUPPORTED_MINER_MODELS: Final[List[str]] = OPENAI_MODELS + ANTHROPIC_MODELS
+SUPPORTED_VALIDATOR_MODELS: Final[List[str]] = OPENAI_MODELS
 
 SENTINEL_FLOAT_FAILURE_VALUE: Final[float] = -1.
 SENTINEL_INT_FAILURE_VALUE: Final[int] = -1
 SENTINEL_STRING_FAILURE_VALUE: Final[str] = "N/A"
 
-PRICING_DATA_PER_MILLION_TOKENS = {
+PRICING_DATA_PER_MILLION_TOKENS: Final[Dict[str, Dict[str, float]]] = {
     "gpt-4o": {
         "input": 2.50,
         "output": 10.00,
