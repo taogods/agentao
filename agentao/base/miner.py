@@ -23,8 +23,8 @@ import traceback
 
 import bittensor as bt
 
-from taogod.base.neuron import BaseNeuron
-from taogod.utils.config import add_miner_args
+from agentao.base.neuron import BaseNeuron
+from agentao.utils.config import add_miner_args
 
 from typing import Union
 

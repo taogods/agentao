@@ -6,10 +6,10 @@ from typing import List, Final, Union
 import openai
 from jinja2 import Template
 
-from taogod.helpers.classes import FilePair, ProblemGeneratorParameters, GeneratedProblemStatement, \
+from agentao.helpers.classes import FilePair, ProblemGeneratorParameters, GeneratedProblemStatement, \
     ListOfGeneratedProblems, ValidatorModelStats, IngestionHeuristics
-from taogod.helpers.helpers import calculate_price
-from taogod.validator.ingest import get_all_filepairs
+from agentao.helpers.helpers import calculate_price
+from agentao.validator.ingest import get_all_filepairs
 
 PROBLEM_STATEMENT_TEMPLATE: Final[Template] = Template(
     dedent("""

@@ -13,9 +13,9 @@ import yaml
 from git import Repo
 from tabulate import tabulate
 
-from taogod.helpers.classes import FloatGraderScore, FullyScoredProblem, convert_to_obj
-from taogod.helpers.clients import logger
-from taogod.helpers.constants import PRICING_DATA_PER_MILLION_TOKENS, SENTINEL_FLOAT_FAILURE_VALUE, \
+from agentao.helpers.classes import FloatGraderScore, FullyScoredProblem, convert_to_obj
+from agentao.helpers.clients import logger
+from agentao.helpers.constants import PRICING_DATA_PER_MILLION_TOKENS, SENTINEL_FLOAT_FAILURE_VALUE, \
     SENTINEL_STRING_FAILURE_VALUE
 
 

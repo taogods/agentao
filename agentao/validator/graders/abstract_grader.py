@@ -3,7 +3,7 @@ from typing import List
 
 from pydantic import BaseModel
 
-from taogod.helpers.classes import GeneratedProblemStatement, IssueSolution
+from agentao.helpers.classes import GeneratedProblemStatement, IssueSolution
 
 
 class MinerSubmission(BaseModel):

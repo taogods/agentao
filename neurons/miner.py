@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
-# Copyright © 2023 Taogod
+# Copyright © 2023 Agentao
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
 # the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
@@ -22,14 +22,14 @@ from typing import Tuple
 
 import yaml
 
-import taogod
-from taogod.base.miner import BaseMinerNeuron
-from taogod.helpers.classes import UnsolvedIssue
-from taogod.helpers.clients import logger
-from taogod.helpers.helpers import clone_repo
-from taogod.miner.generate_solution import generate_code_patch
-from taogod.miner.supported_models import MODEL_NAME_TO_ENVAR_NAME, SUPPORTED_MINER_MODELS
-from taogod.repo_environment import SUPPORTED_REPOS, REPO_TO_ENVIRONMENT_INFO
+import agentao
+from agentao.base.miner import BaseMinerNeuron
+from agentao.helpers.classes import UnsolvedIssue
+from agentao.helpers.clients import logger
+from agentao.helpers.helpers import clone_repo
+from agentao.miner.generate_solution import generate_code_patch
+from agentao.miner.supported_models import MODEL_NAME_TO_ENVAR_NAME, SUPPORTED_MINER_MODELS
+from agentao.repo_environment import SUPPORTED_REPOS, REPO_TO_ENVIRONMENT_INFO
 
 
 
@@ -64,8 +64,8 @@ class Miner(BaseMinerNeuron):
         super(Miner, self).__init__(config=config)
 
     async def forward(
-        self, synapse: taogod.protocol.CodingTask
-    ) -> taogod.protocol.CodingTask:
+        self, synapse: agentao.protocol.CodingTask
+    ) -> agentao.protocol.CodingTask:
         """
         Processes the incoming 'Dummy' synapse by performing a predefined operation on the input data.
         This method should be replaced with actual logic relevant to the miner's purpose.
@@ -130,7 +130,7 @@ class Miner(BaseMinerNeuron):
             logger.exception("Error processing request")
 
     async def blacklist(
-        self, synapse: taogod.protocol.CodingTask
+        self, synapse: agentao.protocol.CodingTask
     ) -> Tuple[bool, str]:
         """
         Determines whether an incoming request should be blacklisted and thus ignored. Your implementation should
@@ -190,7 +190,7 @@ class Miner(BaseMinerNeuron):
         )
         return False, "Hotkey recognized!"
 
-    async def priority(self, synapse: taogod.protocol.CodingTask) -> float:
+    async def priority(self, synapse: agentao.protocol.CodingTask) -> float:
         """
         The priority function determines the order in which requests are handled. More valuable or higher-priority
         requests are processed before others. You should design your own priority mechanism with care.

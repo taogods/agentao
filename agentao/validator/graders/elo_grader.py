@@ -9,9 +9,9 @@ from typing import Tuple, Dict, Final
 import openai
 from pydantic import BaseModel
 
-from taogod.helpers.classes import GeneratedProblemStatement
-from taogod.helpers.clients import logger
-from taogod.validator.graders.abstract_grader import GraderInterface, MinerSubmission
+from agentao.helpers.classes import GeneratedProblemStatement
+from agentao.helpers.clients import logger
+from agentao.validator.graders.abstract_grader import GraderInterface, MinerSubmission
 
 NUM_ELO_ROUNDS: Final[int] = 2
 

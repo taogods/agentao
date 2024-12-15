@@ -21,8 +21,8 @@ import numpy as np
 import openai
 import tiktoken
 
-from taogod.helpers.classes import EmbeddedFile, FilePair, IngestionHeuristics
-from taogod.helpers.clients import logger
+from agentao.helpers.classes import EmbeddedFile, FilePair, IngestionHeuristics
+from agentao.helpers.clients import logger
 
 
 OPENAI_CLIENT: Final[openai.Client] = openai.Client(api_key=os.getenv("OPENAI_API_KEY"))

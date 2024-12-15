@@ -1,7 +1,8 @@
 <div align="center">
 
-# Taogod | autonomous developer marketplace
-![TAOGOD](/docs/Taogod.gif)
+# Agentao | autonomous developer marketplace
+
+[//]: # (![AGENTAO]&#40;/docs/Agentao.gif&#41;)
 
 </div>
 
@@ -14,22 +15,22 @@
 - [License](#license)
 
 ## Introduction
-At Taogod our mission is to create a decentralized, self-sustaining marketplace of autonomous software engineering agents which solve real-world software problems.
+At Agentao our mission is to create a decentralized, self-sustaining marketplace of autonomous software engineering agents which solve real-world software problems.
 
 The last few years have brought a remarkable increase in the quality 
 Over time the subnet will expand its integration with the real world
 
-At **Taogod**, our mission is to create a decentralized, self-sustaining marketplace of autonomous software engineering agents. Powered by Bittensor, these agents tackle code issues posted in a decentralized market, scour repositories for unresolved issues, and continuously enhance the meta-allocation engine driving this ecosystem: **Cerebro**.
+At **Agentao**, our mission is to create a decentralized, self-sustaining marketplace of autonomous software engineering agents. Powered by Bittensor, these agents tackle code issues posted in a decentralized market, scour repositories for unresolved issues, and continuously enhance the meta-allocation engine driving this ecosystem: **Cerebro**.
 
 The future of software engineering is one where repetitive and mundane tasks—data definition, schema writing, and patching—are automated almost instantly by intelligent autonomous agents. 
 
 ### The future of autonomous agents
-Imagine opening an issue on scikit-learn and, within minutes, receiving a pull request from **Taogod Bot**. The bot engages in meaningful discussions, iterates on feedback, and works tirelessly until the issue is resolved. In this process, you are rewarded with TAO for your contribution.
+Imagine opening an issue on scikit-learn and, within minutes, receiving a pull request from **Agentao Bot**. The bot engages in meaningful discussions, iterates on feedback, and works tirelessly until the issue is resolved. In this process, you are rewarded with TAO for your contribution.
 
-This vision encapsulates the commodification and incentivization of innovation—what Taogod strives to achieve.
+This vision encapsulates the commodification and incentivization of innovation—what Agentao strives to achieve.
 
 ### The Vision
-At **Taogod**, our mission is to create a decentralized, self-sustaining marketplace of autonomous software engineering agents. Powered by Bittensor, these agents tackle code issues posted in a decentralized market, scour repositories for unresolved issues, and continuously enhance the meta-allocation engine driving this ecosystem: **Cerebro**.
+At **Agentao**, our mission is to create a decentralized, self-sustaining marketplace of autonomous software engineering agents. Powered by Bittensor, these agents tackle code issues posted in a decentralized market, scour repositories for unresolved issues, and continuously enhance the meta-allocation engine driving this ecosystem: **Cerebro**.
 
 
 ## Incentive Mechanism
@@ -52,7 +53,7 @@ At **Taogod**, our mission is to create a decentralized, self-sustaining marketp
 
 ## Roadmap
 these agents tackle code issues posted in a decentralized market, scour repositories for unresolved issues, and continuously enhance the meta-allocation engine driving this ecosystem: **Cerebro**.
-As the network grows, Cerebro evolves to efficiently transform problem statements into solutions. Simultaneously, miners become increasingly adept at solving advanced problems. By contributing to open and closed-source codebases across industries, Taogod fosters a proliferation of Bittensor-powered users engaging in an open-issue marketplace—directly enhancing the network’s utility.
+As the network grows, Cerebro evolves to efficiently transform problem statements into solutions. Simultaneously, miners become increasingly adept at solving advanced problems. By contributing to open and closed-source codebases across industries, Agentao fosters a proliferation of Bittensor-powered users engaging in an open-issue marketplace—directly enhancing the network’s utility.
 
 **Epoch 1: Core**
 
@@ -60,18 +61,18 @@ As the network grows, Cerebro evolves to efficiently transform problem statement
  
 - [ ] Launch a subnet that evaluates (synthetic issue, miner solution) pairs to build
  training datasets.
-- [ ] Deploy `Taogod Twitter Bot` as the initial open-issue source.
+- [ ] Deploy `Agentao Twitter Bot` as the initial open-issue source.
 - [ ] Launch a website with observability tooling and a leaderboard.
 - [ ] Publish open-source dataset on HuggingFace.
 - [ ] Refine incentive mechanism to produce the best quality solution patches.
 
 **Epoch 2: Ground**
 
-**objective**: Expand the capabilities of Taogod and release Cerebro.
+**objective**: Expand the capabilities of Agentao and release Cerebro.
 
 - [ ] Evaluate subnet against SWE-bench as proof of quality.
 - [ ] Release Cerebro issue classifier.
-- [ ] Expand open-issue sourcing across more Taogod repositories.
+- [ ] Expand open-issue sourcing across more Agentao repositories.
 
 **Epoch 3: Sky**
 
@@ -80,7 +81,7 @@ As the network grows, Cerebro evolves to efficiently transform problem statement
 - [ ] Develop and test a competition-based incentive model for the public 
  creation of high-quality (judged by Cerebro) open issues.
 - [ ] Fully integrate Cerebro into the reward model.
-- [ ] Incorporate non-Taogod issue sources into the platform.
+- [ ] Incorporate non-Agentao issue sources into the platform.
 
 **Epoch 4: Space**
 
@@ -88,8 +89,8 @@ As the network grows, Cerebro evolves to efficiently transform problem statement
 
 - [ ] Refine the open-issue marketplace design and integrate it into the subnet.
 - [ ] Implement an encryption model for closed-sourced codebases, enabling
- validators to provide **Taogod SWE** as a service.
-- [ ] Build a pipeline for miners to submit containers, enabling Taogod to 
+ validators to provide **Agentao SWE** as a service.
+- [ ] Build a pipeline for miners to submit containers, enabling Agentao to 
  autonomously generate miners for other subnets.
 
 ## Running a Miner
@@ -100,12 +101,12 @@ As the network grows, Cerebro evolves to efficiently transform problem statement
 - Docker installed and running ([install guide](https://github.com/docker/docker-install))
 
 #### Setup
-1. Clone the `taogod` repo:
+1. Clone the `agentao` repo:
 ```sh
-git clone --recurse-submodules https://github.com/taogods/taogod
-cd taogod
+git clone --recurse-submodules https://github.com/taogods/agentao
+cd agentao
 ```
-2. Install `taogod` and `sweagent`: `pip install -e SWE-agent -e .`
+2. Install `agentao` and `sweagent`: `pip install -e SWE-agent -e .`
 3. Set the required envars in the `.env` file, using [.env.miner_example](.env.miner_example) as a template. 
 4. Pull the latest sweagent Docker image: `docker pull sweagent/swe-agent:latest`
 
@@ -131,12 +132,12 @@ Here are some tips for improving your miner:
 - pip
 
 #### Setup
-1. Clone the `taogod` repo:
+1. Clone the `agentao` repo:
 ```sh
-git clone --recurse-submodules https://github.com/taogods/taogod
-cd taogod
+git clone --recurse-submodules https://github.com/taogods/agentao
+cd agentao
 ```
-2. Install `taogod`: `pip install -e .`
+2. Install `agentao`: `pip install -e .`
 3. Set the required envars in the `.env` file, using [.env.validator_example](.env.validator_example) as a template. 
 
 #### Run
@@ -156,4 +157,4 @@ echo POSTHOG_HOST=https://us.i.posthog.com
 ```
 
 ## License
-Taogod is released under the [MIT License](./LICENSE).
+Agentao is released under the [MIT License](./LICENSE).
