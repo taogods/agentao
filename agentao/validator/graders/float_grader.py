@@ -4,13 +4,12 @@ from textwrap import dedent
 from typing import Final, List
 
 import openai
+from pydantic import BaseModel
 
-from agentao.helpers.classes import GeneratedProblemStatement, FloatGraderScore, IssueSolution, \
-    ValidatorModelStats, EMPTY_PATCH_SCORE
+from agentao.helpers.classes import GeneratedProblemStatement, IssueSolution, ValidatorModelStats
 from agentao.helpers.clients import LOGGER
 from agentao.validator.graders.abstract_grader import MinerSubmission, GraderInterface
 from agentao.validator.graders.helpers import preprocess_patch
-
 
 GRADER_SYSTEM_PROMPT: Final[str] = """
 Instructions:
@@ -40,6 +39,22 @@ Affected Files:
 {affected_files} 
 """
 
+class FloatGraderScore(BaseModel):
+    dynamic_checklist_scores: List[float]
+    addresses_problem_in_statement: float
+    logical_solution: float
+    brevity_and_cleanliness_of_code: float
+    potential_bugs_generated: float
+    explanation_of_scores: str
+
+EMPTY_PATCH_SCORE: Final[FloatGraderScore] = FloatGraderScore(
+    dynamic_checklist_scores=[],
+    addresses_problem_in_statement=0,
+    logical_solution=0,
+    brevity_and_cleanliness_of_code=0,
+    potential_bugs_generated=0,
+    explanation_of_scores="Patch was empty"
+)
 
 class FloatGrader(GraderInterface):
     def grade(self, submissions: List[MinerSubmission]) -> List[float]:

@@ -27,6 +27,8 @@ MODEL_NAME_TO_ENVAR_NAME: Final[Dict[str, str]] = (
 )
 
 SUPPORTED_MINER_MODELS: Final[List[str]] = OPENAI_MODELS + ANTHROPIC_MODELS
+
+# TODO: Add support for other models on validator
 SUPPORTED_VALIDATOR_MODELS: Final[List[str]] = OPENAI_MODELS
 
 SENTINEL_FLOAT_FAILURE_VALUE: Final[float] = -1.
