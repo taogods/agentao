@@ -5,11 +5,11 @@ from typing import Final, List
 
 import openai
 
-from taogod.helpers.classes import GeneratedProblemStatement, FloatGraderScore, IssueSolution, \
+from agentao.helpers.classes import GeneratedProblemStatement, FloatGraderScore, IssueSolution, \
     ValidatorModelStats, EMPTY_PATCH_SCORE
-from taogod.helpers.clients import logger
-from taogod.validator.graders.abstract_grader import MinerSubmission, GraderInterface
-from taogod.validator.graders.helpers import preprocess_patch
+from agentao.helpers.clients import logger
+from agentao.validator.graders.abstract_grader import MinerSubmission, GraderInterface
+from agentao.validator.graders.helpers import preprocess_patch
 
 
 GRADER_SYSTEM_PROMPT: Final[str] = """

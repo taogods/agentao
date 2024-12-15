@@ -19,8 +19,8 @@ from sweagent.environment.utils import (
 )
 from sweagent.types import AgentInfo, TrajectoryStep
 
-from taogod.helpers.classes import UnsolvedIssue, IssueSolution, MinerModelStats
-from taogod.helpers.clients import logger
+from agentao.helpers.classes import UnsolvedIssue, IssueSolution, MinerModelStats
+from agentao.helpers.clients import logger
 
 
 @dataclass(frozen=True)

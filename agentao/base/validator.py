@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
-# Copyright © 2023 Taogod
+# Copyright © 2023 Agentao
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
@@ -27,12 +27,12 @@ from enum import Enum
 from traceback import print_exception
 from typing import List, Union
 
-from taogod.base.neuron import BaseNeuron
-from taogod.base.utils.weight_utils import (
+from agentao.base.neuron import BaseNeuron
+from agentao.base.utils.weight_utils import (
     convert_weights_and_uids_for_emit,
 )  # TODO: Replace when bittensor switches to numpy
-from taogod.mock import MockDendrite
-from taogod.utils.config import add_validator_args
+from agentao.mock import MockDendrite
+from agentao.utils.config import add_validator_args
 
 
 def normalize(x, p=2, dim=0):

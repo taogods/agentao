@@ -23,10 +23,10 @@ import bittensor as bt
 from abc import ABC, abstractmethod
 
 # Sync calls set weights and also resyncs the metagraph.
-from taogod.utils.config import check_config, add_args, config
-from taogod.utils.misc import ttl_get_block
-from taogod import __spec_version__ as spec_version
-from taogod.mock import MockSubtensor, MockMetagraph
+from agentao.utils.config import check_config, add_args, config
+from agentao.utils.misc import ttl_get_block
+from agentao import __spec_version__ as spec_version
+from agentao.mock import MockSubtensor, MockMetagraph
 
 
 class BaseNeuron(ABC):

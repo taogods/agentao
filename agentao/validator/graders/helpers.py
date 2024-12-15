@@ -8,7 +8,7 @@ from typing import Final
 import openai
 from git import Repo
 
-from taogod.helpers.clients import logger
+from agentao.helpers.clients import logger
 
 CLEANER_SYSTEM_PROMPT: Final[str] = """
 Instruction:

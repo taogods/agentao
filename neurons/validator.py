@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
-# Copyright © 2023 Taogod
+# Copyright © 2023 Agentao
 import argparse
 import random
 import time
@@ -13,17 +13,17 @@ from aiohttp import BasicAuth, ClientSession
 
 from neurons.constants import UPLOAD_ISSUE_ENDPOINT
 from neurons.helpers import LOGGER
-from taogod.base.validator import BaseValidatorNeuron, TaskType
-from taogod.helpers.classes import GeneratedProblemStatement, IngestionHeuristics, \
+from agentao.base.validator import BaseValidatorNeuron, TaskType
+from agentao.helpers.classes import GeneratedProblemStatement, IngestionHeuristics, \
     IssueSolution
-from taogod.helpers.helpers import clone_repo, exponential_decay
-from taogod.protocol import CodingTask
-from taogod.repo_environment import SUPPORTED_REPOS
-from taogod.utils.uids import check_uid_availability
-from taogod.validator.generate_problem import create_problem_statements
-from taogod.validator.graders.abstract_grader import MinerSubmission
-from taogod.validator.graders.elo_grader import EloGrader
-from taogod.validator.supported_models import SUPPORTED_VALIDATOR_MODELS
+from agentao.helpers.helpers import clone_repo, exponential_decay
+from agentao.protocol import CodingTask
+from agentao.repo_environment import SUPPORTED_REPOS
+from agentao.utils.uids import check_uid_availability
+from agentao.validator.generate_problem import create_problem_statements
+from agentao.validator.graders.abstract_grader import MinerSubmission
+from agentao.validator.graders.elo_grader import EloGrader
+from agentao.validator.supported_models import SUPPORTED_VALIDATOR_MODELS
 
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated

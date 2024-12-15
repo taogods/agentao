@@ -1,5 +1,5 @@
 """
-This is currently duplicated across taogod and gh-issue-pull repos
+This is currently duplicated across agentao and gh-issue-pull repos
 TODO: remove duplication
 """
 from pydantic import BaseModel

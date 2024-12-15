@@ -53,7 +53,7 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 # loading version from setup.py
 with codecs.open(
-    os.path.join(here, "taogod/__init__.py"), encoding="utf-8"
+    os.path.join(here, "agentao/__init__.py"), encoding="utf-8"
 ) as init_file:
     version_match = re.search(
         r"^__version__ = ['\"]([^'\"]*)['\"]", init_file.read(), re.M
@@ -61,16 +61,16 @@ with codecs.open(
     version_string = version_match.group(1)
 
 setup(
-    name="taogod",
+    name="agentao",
     version=version_string,
-    description="taogod",
+    description="agentao",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/taogods/taogod",
-    author="Taogod",
+    url="https://github.com/taogods/agentao",
+    author="Agentao",
     packages=find_packages(),
     include_package_data=True,
-    author_email="taogods@proton.mes",
+    author_email="taogods@proton.me",
     license="MIT",
     python_requires=">=3.8",
     install_requires=[
@@ -139,7 +139,6 @@ setup(
         "pytz",
         "multidict",
         "rich",
-        "taogod",
         "simple-parsing",
         "posthog",
         "python-dotenv",
