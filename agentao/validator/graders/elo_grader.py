@@ -10,7 +10,7 @@ import openai
 from pydantic import BaseModel
 
 from agentao.helpers.classes import GeneratedProblemStatement
-from agentao.helpers.clients import logger
+from agentao.helpers.clients import LOGGER
 from agentao.validator.graders.abstract_grader import GraderInterface, MinerSubmission
 
 NUM_ELO_ROUNDS: Final[int] = 2
@@ -203,10 +203,10 @@ def rank_elo(submissions: List[MinerSubmission]) -> List[float]:
             solution_1_and_index_str=(solution_1, second),
             openai_client=openai_client,
         )
-        logger.info(f"Current rankings: {get_raw_elo_rankings(local_elo, str_indices)}")
+        LOGGER.info(f"Current rankings: {get_raw_elo_rankings(local_elo, str_indices)}")
 
     raw_elo_model_rankings = get_raw_elo_rankings(local_elo, str_indices)
-    logger.info(f"Raw elo model rankings: {raw_elo_model_rankings}")
+    LOGGER.info(f"Raw elo model rankings: {raw_elo_model_rankings}")
 
     scores = [raw_elo_model_rankings[str(i)] for i in range(len(submissions))]
     return scores

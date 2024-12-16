@@ -4,7 +4,16 @@ Script to test the miner `generate_code_patch` function used in the miner forwar
 Uses a sample issue from the SWE-agent tutorial:
 https://princeton-nlp.github.io/SWE-agent/usage/cl_tutorial
 """
-from agentao.miner_utils import UnsolvedIssue, generate_code_patch
+import tempfile
+from pathlib import Path
+
+import yaml
+
+from agentao.helpers.classes import UnsolvedIssue
+from agentao.helpers.helpers import clone_repo
+from agentao.miner.generate_solution import generate_code_patch
+from agentao.repo_environment import REPO_TO_ENVIRONMENT_INFO
+from neurons.miner import MinerDefaults
 
 test_issue_desc = """I'm running missing_colon.py as follows:
 
@@ -17,12 +26,30 @@ but I get the following error:
 SyntaxError: invalid syntax
 """
 
-test_unsolved_issue = UnsolvedIssue(
-    desc=test_issue_desc,
-    local_code_path="https://github.com/SWE-agent/test-repo",
-)
+repo = "mwaskom/seaborn"
+author_name, repo_name = repo.split("/")
 
-patch = generate_code_patch(test_unsolved_issue).patch
+print(f"Cloning repo {repo}...")
+local_repo_dir = clone_repo(author_name, repo_name, Path.cwd().parent)
+print(f"Finished cloning repo {repo}")
 
-# Breakpoint for debugging/analysis
-import ipdb; ipdb.set_trace()
+repo_environment_info = REPO_TO_ENVIRONMENT_INFO[repo]
+
+with tempfile.NamedTemporaryFile(suffix=".yaml", mode="w") as temp_env_file:
+    yaml.dump(repo_environment_info.config_dict, temp_env_file)
+    temp_env_file.flush()
+
+    test_unsolved_issue = UnsolvedIssue(
+        desc=test_issue_desc,
+        local_code_path=local_repo_dir,
+        env_setup_path=Path(temp_env_file.name)
+    )
+
+    patch = generate_code_patch(
+        MinerDefaults.MODEL,
+        test_unsolved_issue,
+        MinerDefaults.MAX_INSTANCE_COST
+    ).patch
+
+    # Breakpoint for debugging/analysis
+    import ipdb; ipdb.set_trace()

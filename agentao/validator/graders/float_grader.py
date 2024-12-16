@@ -4,13 +4,12 @@ from textwrap import dedent
 from typing import Final, List
 
 import openai
+from pydantic import BaseModel
 
-from agentao.helpers.classes import GeneratedProblemStatement, FloatGraderScore, IssueSolution, \
-    ValidatorModelStats, EMPTY_PATCH_SCORE
-from agentao.helpers.clients import logger
+from agentao.helpers.classes import GeneratedProblemStatement, IssueSolution, ValidatorModelStats
+from agentao.helpers.clients import LOGGER
 from agentao.validator.graders.abstract_grader import MinerSubmission, GraderInterface
 from agentao.validator.graders.helpers import preprocess_patch
-
 
 GRADER_SYSTEM_PROMPT: Final[str] = """
 Instructions:
@@ -40,6 +39,22 @@ Affected Files:
 {affected_files} 
 """
 
+class FloatGraderScore(BaseModel):
+    dynamic_checklist_scores: List[float]
+    addresses_problem_in_statement: float
+    logical_solution: float
+    brevity_and_cleanliness_of_code: float
+    potential_bugs_generated: float
+    explanation_of_scores: str
+
+EMPTY_PATCH_SCORE: Final[FloatGraderScore] = FloatGraderScore(
+    dynamic_checklist_scores=[],
+    addresses_problem_in_statement=0,
+    logical_solution=0,
+    brevity_and_cleanliness_of_code=0,
+    potential_bugs_generated=0,
+    explanation_of_scores="Patch was empty"
+)
 
 class FloatGrader(GraderInterface):
     def grade(self, submissions: List[MinerSubmission]) -> List[float]:
@@ -84,7 +99,7 @@ def _grade_miner_solution(miner_submission: MinerSubmission) -> FloatGraderScore
     cleaned_patch = preprocess_patch(repo, miner_solution.patch)
 
     if cleaned_patch == "":
-        logger.info(f"Patch is empty, terminating early...")
+        LOGGER.info(f"Patch is empty, terminating early...")
         return EMPTY_PATCH_SCORE
 
     # logger.info(f"Cleaned context:\n{cleaned_patch_context}\n\n")
@@ -95,7 +110,7 @@ def _grade_miner_solution(miner_submission: MinerSubmission) -> FloatGraderScore
         affected_files=generated_problem_statement.prompt,  # todo: fix this
     )
 
-    logger.info("Making call to grade code...")
+    LOGGER.info("Making call to grade code...")
     completion = OPENAI_CLIENT.beta.chat.completions.parse(
         model='gpt-4o-2024-08-06',
         messages=[
@@ -105,7 +120,7 @@ def _grade_miner_solution(miner_submission: MinerSubmission) -> FloatGraderScore
         response_format=FloatGraderScore,
     )
     miner_output_score: FloatGraderScore = completion.choices[0].message.parsed
-    logger.info("Finished making call to grade code")
+    LOGGER.info("Finished making call to grade code")
 
     if miner_output_score is None:
         raise Exception("OpenAI did not grade miner output")
@@ -149,4 +164,4 @@ if __name__ == "__main__":
             solution=sample_diff
     )])
 
-    logger.info(f"Grade response {scores}")
+    LOGGER.info(f"Grade response {scores}")

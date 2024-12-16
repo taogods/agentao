@@ -91,14 +91,6 @@ class FilePair:
 
 
 @dataclass
-class ProblemGeneratorParameters:
-    filepair_selection_logic: Callable[[List[FilePair]], FilePair]
-    prompt_template: Template
-    num_problems_to_gen: int
-    problem_gen_model: str
-
-
-@dataclass
 class ValidatorModelStats:
     input_tokens: int
     output_tokens: int
@@ -145,52 +137,3 @@ class IssueSolution:
     patch: str
     model_stats: Optional[MinerModelStats] = None
     exit_status: Optional[str] = None
-
-
-class GeneratedProblem(BaseModel):
-    problem_statement: str
-    dynamic_checklist: List[str]
-
-
-# We use pydantic for some classes because OpenAI json output can structure based on that
-class ListOfGeneratedProblems(BaseModel):
-    generated_problem_statements: List[GeneratedProblem]
-
-
-class FloatGraderScore(BaseModel):
-    dynamic_checklist_scores: List[float]
-    addresses_problem_in_statement: float
-    logical_solution: float
-    brevity_and_cleanliness_of_code: float
-    potential_bugs_generated: float
-    explanation_of_scores: str
-
-EMPTY_PATCH_SCORE = FloatGraderScore(
-    dynamic_checklist_scores=[],
-    addresses_problem_in_statement=0,
-    logical_solution=0,
-    brevity_and_cleanliness_of_code=0,
-    potential_bugs_generated=0,
-    explanation_of_scores="Patch was empty"
-)
-
-@dataclass
-class FullyScoredProblem:
-    repo: str  # e.g. "pytest-dev/pytest"
-    generated_problem_statement: GeneratedProblemStatement
-    miner_llm: str
-    time_to_solve_s: float
-    miner_solution: Optional[IssueSolution] = None
-    miner_output_score: Optional[FloatGraderScore] = None
-
-# Dynamically create a TypedDict class based on the dataclass
-def create_typed_dict_from_dataclass(dataclass_type: Type) -> Type[TypedDict]:
-    return TypedDict(
-        dataclass_type.__name__ + "Dict",
-        {field.name: field.type for field in fields(dataclass_type)}
-    )
-
-# Generate FullyScoredProblemDict TypedDict
-FullyScoredProblemDict = create_typed_dict_from_dataclass(FullyScoredProblem)
-
-FullEvalData = List[Dict[str, List[FullyScoredProblemDict]]]

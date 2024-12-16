@@ -1,13 +1,15 @@
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
-from typing import List, Final, Union
+from typing import List, Final, Union, Callable
 
 import openai
 from jinja2 import Template
+from pydantic import BaseModel
 
-from agentao.helpers.classes import FilePair, ProblemGeneratorParameters, GeneratedProblemStatement, \
-    ListOfGeneratedProblems, ValidatorModelStats, IngestionHeuristics
+from agentao.helpers.classes import FilePair, GeneratedProblemStatement, \
+    ValidatorModelStats, IngestionHeuristics
 from agentao.helpers.helpers import calculate_price
 from agentao.validator.ingest import get_all_filepairs
 
@@ -34,8 +36,24 @@ PROBLEM_STATEMENT_TEMPLATE: Final[Template] = Template(
     """)
 )
 
-
+# TODO: Add support for other model providers
 OPENAI_CLIENT: Final[openai.Client] = openai.Client(api_key=os.getenv("OPENAI_API_KEY"))
+
+class GeneratedProblem(BaseModel):
+    problem_statement: str
+    dynamic_checklist: List[str]
+
+@dataclass
+class ProblemGeneratorParameters:
+    filepair_selection_logic: Callable[[List[FilePair]], FilePair]
+    prompt_template: Template
+    num_problems_to_gen: int
+    problem_gen_model: str
+
+
+# We use pydantic for some classes because OpenAI json output can structure based on that
+class ListOfGeneratedProblems(BaseModel):
+    generated_problem_statements: List[GeneratedProblem]
 
 
 def highest_cosine_filepair_selector(file_pairs: List[FilePair]) -> FilePair:
