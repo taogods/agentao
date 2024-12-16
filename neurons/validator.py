@@ -23,6 +23,8 @@ from typing import *
 import numpy as np
 from aiohttp import BasicAuth, ClientSession
 
+from neurons.constants import UPLOAD_ISSUE_ENDPOINT, LLM_EVAL_MULT, PROCESS_TIME_MULT
+from neurons.helpers import LOGGER
 from agentao.base.validator import BaseValidatorNeuron, TaskType
 from agentao.helpers.classes import GeneratedProblemStatement, IngestionHeuristics, \
     IssueSolution
@@ -34,8 +36,21 @@ from agentao.repo_environment import SUPPORTED_REPOS
 from agentao.utils.uids import check_uid_availability
 from agentao.validator.generate_problem import create_problem_statements
 from agentao.validator.graders.abstract_grader import MinerSubmission
-from agentao.validator.graders.elo_grader import EloGrader
-from neurons.constants import UPLOAD_ISSUE_ENDPOINT
+from agentao.validator.graders.trueskill_grader import TrueSkillGrader
+from agentao.validator.supported_models import SUPPORTED_VALIDATOR_MODELS
+
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+# documentation files (the “Software”), to deal in the Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+# The above copyright notice and this permission notice shall be included in all copies or substantial portions of
+# the Software.
+# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+# THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+# DEALINGS IN THE SOFTWARE.
 
 
 class ValidatorDefaults:
@@ -69,20 +84,25 @@ class Validator(BaseValidatorNeuron):
 
         self.model_name = model
         self.miner_request_timeout_mins = miner_request_timeout
+        self.grader = TrueSkillGrader()
 
     async def calculate_rewards(
         self,
         repo: str,
         problem: GeneratedProblemStatement,
         issue_solutions: List[IssueSolution],
+        miner_hotkeys: List[str],
         process_times: List[float],
     ) -> np.ndarray:
         """
         Validate the responses from the miners. This function should score the responses and return a list of rewards for each miner.
         """
-        elo_grader = EloGrader()
-        llm_evals = elo_grader.grade([
-            MinerSubmission(repo=repo, problem=problem, solution=issue_solution) for issue_solution in issue_solutions
+        llm_evals = self.grader.grade([
+            MinerSubmission(
+                repo=repo, 
+                problem=problem, 
+                solution=issue_solution
+            ) for issue_solution, hk in zip(issue_solutions, miner_hotkeys)
         ])
 
         response_times = np.array([
@@ -90,7 +110,7 @@ class Validator(BaseValidatorNeuron):
             for t in process_times
         ])
 
-        return llm_evals + response_times
+        return LLM_EVAL_MULT*llm_evals + PROCESS_TIME_MULT*response_times
     
     # TODO: Add more fields once components of scoring are named
     async def upload_solution(
@@ -231,11 +251,13 @@ class Validator(BaseValidatorNeuron):
         process_times: List[float], 
         working_miner_uids: List[int], 
     ) -> None:
+        miner_hotkeys = [self.metagraph.hotkeys[uid] for uid in working_miner_uids]
         try:
             rewards_list = await self.calculate_rewards(
                 repo,
                 problem,
                 finished_responses, 
+                miner_hotkeys,
                 process_times,
             )
         except Exception:
@@ -256,7 +278,7 @@ class Validator(BaseValidatorNeuron):
                 problem.problem_statement,
                 finished_responses,
                 rewards_list.tolist(),
-                [self.metagraph.hotkeys[uid] for uid in working_miner_uids],
+                miner_hotkeys,
             )
         except Exception:
             LOGGER.exception("Error uploading solution")
