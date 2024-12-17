@@ -6,6 +6,11 @@ from agentao.validator.graders.abstract_grader import GraderInterface, MinerSubm
 from agentao.validator.graders.float_grader import FloatGrader
 
 class TrueSkillGrader(GraderInterface):
+    """
+    A grader that uses the TrueSkill rating system to grade miners. The 
+    ratings are updated based on the performance of the miners in the
+    forward loop, and then normalized with a logistic function.
+    """
     def __init__(self):
         self.env = trueskill.TrueSkill()
         self.ratings: Dict[str, trueskill.Rating] = {}
@@ -14,10 +19,6 @@ class TrueSkillGrader(GraderInterface):
         self.apha = np.log(4) / self.env.beta
 
     def grade(self, submissions: List[MinerSubmission]) -> List[float]:
-        scores = self.rank_trueskill(submissions)
-        return scores
-
-    def rank_trueskill(self, submissions: List[MinerSubmission]) -> List[float]:
         # Initialize any new miners
         for submission in submissions:
             if submission.miner_hotkey not in self.ratings:
